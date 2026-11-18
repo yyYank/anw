@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/yyYank/anw/internal/port"
 )
 
 // testCLI はテスト用の toml を読ませ、テスト用ディレクトリでコマンドを実行する
@@ -17,6 +18,11 @@ type testCLI struct {
 	configPath string
 	historyDir string
 	workDir    string
+	listeners  []port.Listener
+	killed     []int
+	// pick は一覧の画面で選ぶ行。-1 なら選ばずにやめる
+	pick  int
+	shown bool
 }
 
 // setupCLI はテスト用の toml を書き出し、テスト用ディレクトリをカレントディレクトリにする
@@ -34,7 +40,24 @@ func setupCLI(t *testing.T) *testCLI {
 		t.Fatal(err)
 	}
 	t.Chdir(workDir)
-	return &testCLI{t: t, configPath: configPath, historyDir: historyDir, workDir: workDir}
+	c := &testCLI{t: t, configPath: configPath, historyDir: historyDir, workDir: workDir}
+
+	// 本物のプロセスを調べたり止めたりしないよう、偽物に差し替える
+	origList, origKill, origSelect := listListeners, killProcess, selectListener
+	listListeners = func() ([]port.Listener, error) { return c.listeners, nil }
+	killProcess = func(pid int) error {
+		c.killed = append(c.killed, pid)
+		return nil
+	}
+	selectListener = func(ls []port.Listener) (port.Listener, bool, error) {
+		c.shown = true
+		if c.pick < 0 {
+			return port.Listener{}, false, nil
+		}
+		return ls[c.pick], true, nil
+	}
+	t.Cleanup(func() { listListeners, killProcess, selectListener = origList, origKill, origSelect })
+	return c
 }
 
 // createFile はテスト用ディレクトリにテスト対象のファイルを作り、更新日時を設定する
