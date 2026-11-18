@@ -1,0 +1,48 @@
+package config
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+
+	"github.com/BurntSushi/toml"
+)
+
+// Config は anw の設定。
+type Config struct {
+	HistoryDir string `toml:"history_dir"`
+}
+
+// DefaultPath は設定ファイルの既定のパスを返す。
+func DefaultPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "anw", "config.toml"), nil
+}
+
+// Load は path の toml を読み込む。
+// 値がない項目は、環境変数、既定値の順に補う。
+func Load(path string) (Config, error) {
+	var cfg Config
+	if _, err := toml.DecodeFile(path, &cfg); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Config{}, err
+	}
+	if cfg.HistoryDir == "" {
+		cfg.HistoryDir = os.Getenv("ANW_HISTORY_DIR")
+	}
+	if cfg.HistoryDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.HistoryDir = filepath.Join(home, ".anw")
+	}
+	return cfg, nil
+}
+
+// HistoryFile は操作の履歴を保存するファイルのパスを返す。
+func (c Config) HistoryFile() string {
+	return filepath.Join(c.HistoryDir, "history.json")
+}

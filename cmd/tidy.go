@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/yyYank/anw/internal/history"
 	"github.com/yyYank/anw/internal/tidy"
 )
 
@@ -24,6 +26,16 @@ var tidyCmd = &cobra.Command{
 			return err
 		}
 		moves, err := tidy.Run(dir)
+		// 途中で失敗しても、移動済みの分は元に戻せるように保存する
+		if len(moves) > 0 {
+			path, herr := historyPath()
+			if herr != nil {
+				return errors.Join(err, herr)
+			}
+			if herr := history.Save(path, moves); herr != nil {
+				return errors.Join(err, herr)
+			}
+		}
 		for _, m := range moves {
 			from, _ := filepath.Rel(dir, m.From)
 			to, _ := filepath.Rel(dir, m.To)
