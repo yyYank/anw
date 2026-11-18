@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -32,6 +33,13 @@ func Load(path string) (Config, error) {
 	if cfg.HistoryDir == "" {
 		cfg.HistoryDir = os.Getenv("ANW_HISTORY_DIR")
 	}
+	if cfg.HistoryDir != "" {
+		dir, err := expandPath(cfg.HistoryDir)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.HistoryDir = dir
+	}
 	if cfg.HistoryDir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -40,6 +48,19 @@ func Load(path string) (Config, error) {
 		cfg.HistoryDir = filepath.Join(home, ".anw")
 	}
 	return cfg, nil
+}
+
+// expandPath は先頭の ~ をホームディレクトリに置き換え、環境変数を展開する。
+func expandPath(p string) (string, error) {
+	p = os.ExpandEnv(p)
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, strings.TrimPrefix(p, "~")), nil
 }
 
 // HistoryFile は操作の履歴を保存するファイルのパスを返す。
