@@ -89,7 +89,24 @@ anw undo
 ```
 
 - `anw tidy` による移動が対象です
-- 操作の履歴は `~/.anw/` に保存されます
+- 操作の履歴は、既定では `~/.anw/` に保存されます（[設定](#設定)で変更できます）
+
+## 設定
+
+`~/.config/anw/config.toml` で設定できます。
+
+```toml
+# 操作の履歴を保存するディレクトリ
+history_dir = "~/.anw"
+```
+
+- 値は toml → 環境変数 `ANW_HISTORY_DIR` → `~/.anw` の順で決まります
+- 先頭の `~` と、`$HOME` などの環境変数は展開されます
+- 読み込む設定ファイルは `--config` で指定できます
+
+```sh
+anw --config ./config.toml tidy
+```
 
 ## License
 
