@@ -23,6 +23,13 @@ type testCLI struct {
 	// pick は一覧の画面で選ぶ行。-1 なら選ばずにやめる
 	pick  int
 	shown bool
+
+	envFiles []string
+	// envPick は env の一覧の画面で選ぶ行。-1 なら選ばずにやめる
+	envPick int
+	// envPicker は env の一覧の画面が表示されたときの selectable。表示されなければ nil
+	envPicker *bool
+	edited    []string
 }
 
 // setupCLI はテスト用の toml を書き出し、テスト用ディレクトリをカレントディレクトリにする
@@ -57,6 +64,23 @@ func setupCLI(t *testing.T) *testCLI {
 		return ls[c.pick], true, nil
 	}
 	t.Cleanup(func() { listListeners, killProcess, selectListener = origList, origKill, origSelect })
+
+	// 本物の env ファイルを読んだりエディタを起動したりしないよう、偽物に差し替える
+	t.Setenv("EDITOR", "fake-editor")
+	origFind, origPicker, origEditor := findEnvFiles, showEnvPicker, openEditor
+	findEnvFiles = func(string) ([]string, error) { return c.envFiles, nil }
+	showEnvPicker = func(files []string, selectable bool) (string, bool, error) {
+		c.envPicker = &selectable
+		if !selectable || c.envPick < 0 {
+			return "", false, nil
+		}
+		return files[c.envPick], true, nil
+	}
+	openEditor = func(editor, path string) error {
+		c.edited = append(c.edited, path)
+		return nil
+	}
+	t.Cleanup(func() { findEnvFiles, showEnvPicker, openEditor = origFind, origPicker, origEditor })
 	return c
 }
 
