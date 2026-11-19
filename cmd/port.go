@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"syscall"
 
@@ -23,43 +24,56 @@ var portCmd = &cobra.Command{
 	Short: "ポートを使っているプロセスを確認して止める",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		n := 0
-		if len(args) == 1 {
-			var err error
-			if n, err = strconv.Atoi(args[0]); err != nil {
-				return fmt.Errorf("ポート番号が数字ではありません: %q", args[0])
-			}
+		return killPort(cmd.OutOrStdout(), args)
+	},
+}
+
+// parsePort は引数のポート番号を返す。引数がなければ ok は false。
+func parsePort(args []string) (n int, ok bool, err error) {
+	if len(args) == 0 {
+		return 0, false, nil
+	}
+	if n, err = strconv.Atoi(args[0]); err != nil {
+		return 0, false, fmt.Errorf("ポート番号が数字ではありません: %q", args[0])
+	}
+	return n, true, nil
+}
+
+// killPort は指定ポートを使っているプロセスを kill する。ポート番号がなければ一覧から選ばせる。
+func killPort(w io.Writer, args []string) error {
+	n, hasPort, err := parsePort(args)
+	if err != nil {
+		return err
+	}
+	ls, err := listListeners()
+	if err != nil {
+		return err
+	}
+
+	var targets []port.Listener
+	if hasPort {
+		targets = port.Find(ls, n)
+		if len(targets) == 0 {
+			return fmt.Errorf("%d番を使っているプロセスはありません", n)
 		}
-		ls, err := listListeners()
-		if err != nil {
+	} else {
+		if len(ls) == 0 {
+			return errors.New("LISTEN 中のポートはありません")
+		}
+		l, ok, err := selectListener(ls)
+		if err != nil || !ok {
 			return err
 		}
+		targets = []port.Listener{l}
+	}
 
-		var targets []port.Listener
-		if len(args) == 1 {
-			targets = port.Find(ls, n)
-			if len(targets) == 0 {
-				return fmt.Errorf("%d番を使っているプロセスはありません", n)
-			}
-		} else {
-			if len(ls) == 0 {
-				return errors.New("LISTEN 中のポートはありません")
-			}
-			l, ok, err := selectListener(ls)
-			if err != nil || !ok {
-				return err
-			}
-			targets = []port.Listener{l}
+	for _, l := range targets {
+		if err := killProcess(l.PID); err != nil {
+			return err
 		}
-
-		for _, l := range targets {
-			if err := killProcess(l.PID); err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "kill %d (%s) :%d\n", l.PID, l.Name, l.Port)
-		}
-		return nil
-	},
+		fmt.Fprintf(w, "kill %d (%s) :%d\n", l.PID, l.Name, l.Port)
+	}
+	return nil
 }
 
 // runSelector は一覧の画面を表示し、選ばれた Listener を返す。

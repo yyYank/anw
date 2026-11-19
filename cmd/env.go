@@ -30,35 +30,57 @@ var envCmd = &cobra.Command{
 		if envView && envEdit {
 			return errors.New("--view と --edit は同時に指定できません")
 		}
-		editor := os.Getenv("EDITOR")
-		if envEdit && editor == "" {
-			return errors.New("$EDITOR が設定されていません")
+		if envEdit {
+			return editEnv()
 		}
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		files, err := findEnvFiles(dir)
-		if err != nil {
-			return err
-		}
-		if len(files) == 0 {
-			return errors.New("env ファイルが見つかりません")
-		}
-
-		if !envEdit {
-			_, _, err := showEnvPicker(files, false)
-			return err
-		}
-		if len(files) == 1 {
-			return openEditor(editor, files[0])
-		}
-		file, ok, err := showEnvPicker(files, true)
-		if err != nil || !ok {
-			return err
-		}
-		return openEditor(editor, file)
+		return viewEnv()
 	},
+}
+
+// findEnvFilesInWd はカレントディレクトリ配下の env ファイルを探す。見つからなければエラーにする。
+func findEnvFilesInWd() ([]string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	files, err := findEnvFiles(dir)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, errors.New("env ファイルが見つかりません")
+	}
+	return files, nil
+}
+
+// viewEnv は env ファイルの一覧と内容のプレビューを表示する。
+func viewEnv() error {
+	files, err := findEnvFilesInWd()
+	if err != nil {
+		return err
+	}
+	_, _, err = showEnvPicker(files, false)
+	return err
+}
+
+// editEnv は選んだ env ファイルを $EDITOR で開く。1つだけなら選ばずに開く。
+func editEnv() error {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		return errors.New("$EDITOR が設定されていません")
+	}
+	files, err := findEnvFilesInWd()
+	if err != nil {
+		return err
+	}
+	if len(files) == 1 {
+		return openEditor(editor, files[0])
+	}
+	file, ok, err := showEnvPicker(files, true)
+	if err != nil || !ok {
+		return err
+	}
+	return openEditor(editor, file)
 }
 
 // runEnvPicker は env ファイルの一覧の画面を表示し、選ばれたファイルを返す。
