@@ -12,16 +12,67 @@
 go install github.com/yyYank/anw@latest
 ```
 
-## コマンド
+## 使い方
 
-| コマンド | 内容 |
-| --- | --- |
-| `anw tidy` | ファイルを更新日時ごとのディレクトリに振り分ける |
-| `anw env` | 配下の env ファイルを探して、閲覧・編集する |
-| `anw port` | ポートを使っているプロセスを確認して止める |
-| `anw undo` | 直前のファイル操作を元に戻す |
+サブコマンドは動詞、対象はフラグで指定します。
+
+```sh
+anw <動詞> --<対象>
+```
+
+| 動詞 | 内容 | 対象 |
+| --- | --- | --- |
+| `view` | 見る | `--env` `--port` |
+| `edit` | 編集する | `--env` |
+| `kill` | プロセスを止める | `--port` |
+| `tidy` | ファイルを振り分ける | |
+| `undo` | 直前の操作を元に戻す | |
+
+`view` は見るだけで、何も変更しません。
 
 ---
+
+### anw view
+
+対象を一覧・表示します。
+
+```sh
+anw view --env          # env ファイルの一覧と内容のプレビュー
+anw view --port         # LISTEN 中のポートの一覧
+anw view --port 3000    # 3000番を使っているプロセス
+```
+
+**`--env`**
+
+- カレントディレクトリ配下の `.env` および `.env.*`（`.env.local`、`.env.production` など）を検出します
+- `.git`、`node_modules`、`vendor` 配下は探索しません
+
+**`--port`**
+
+- ポート番号、PID、プロセス名、コマンドを表示します
+
+### anw edit
+
+対象を選んで編集します。
+
+```sh
+anw edit --env
+```
+
+- 対象は `anw view --env` と同じです
+- `$EDITOR` でファイルを開きます
+- 見つかったファイルが1つだけなら、選択を挟まずに開きます
+
+### anw kill
+
+プロセスを止めます。
+
+```sh
+anw kill --port         # 一覧から選んで kill
+anw kill --port 3000    # 3000番を使っているプロセスを kill
+```
+
+- SIGTERM を送ります
 
 ### anw tidy
 
@@ -54,31 +105,6 @@ anw tidy --by date
 - 隠しファイルは対象外です
 - 移動先に同名のファイルがある場合は、`report (1).pdf` のように連番を付けます
 - 実行結果は `anw undo` で元に戻せます
-
-### anw env
-
-カレントディレクトリ配下の env ファイルを検出し、TUI で一覧・閲覧・編集します。
-
-```sh
-anw env --view   # 一覧と内容のプレビュー
-anw env --edit   # 選んだファイルを編集
-```
-
-- `.env` および `.env.*`（`.env.local`、`.env.production` など）を検出します
-- `.git`、`node_modules`、`vendor` 配下は探索しません
-- `--edit` は `$EDITOR` でファイルを開きます。見つかったファイルが1つだけなら、選択を挟まずに開きます
-
-### anw port
-
-LISTEN 中のポートと、それを使っているプロセスを表示します。
-
-```sh
-anw port         # 一覧から選んで kill
-anw port 3000    # 3000番を使っているプロセスを kill
-```
-
-- 一覧にはポート番号、PID、プロセス名、コマンドを表示します
-- kill はまず SIGTERM を送ります
 
 ### anw undo
 
