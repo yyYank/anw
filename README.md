@@ -22,9 +22,10 @@ anw <動詞> --<対象>
 
 | 動詞 | 内容 | 対象 |
 | --- | --- | --- |
-| `view` | 見る | `--env` `--port` |
+| `view` | 見る | `--env` `--port` `--branch` |
 | `edit` | 編集する | `--env` |
 | `kill` | プロセスを止める | `--port` |
+| `delete` | 削除する | `--branch` |
 | `tidy` | ファイルを振り分ける | |
 | `undo` | 直前の操作を元に戻す | |
 
@@ -40,6 +41,7 @@ anw <動詞> --<対象>
 anw view --env          # env ファイルの一覧と内容のプレビュー
 anw view --port         # LISTEN 中のポートの一覧
 anw view --port 3000    # 3000番を使っているプロセス
+anw view --branch       # 削除できるブランチの一覧
 ```
 
 **`--env`**
@@ -50,6 +52,12 @@ anw view --port 3000    # 3000番を使っているプロセス
 **`--port`**
 
 - ポート番号、PID、プロセス名、コマンドを表示します
+
+**`--branch`**
+
+- デフォルトブランチにマージ済みのローカルブランチと、リモートで削除済みのローカルブランチを表示します
+- 現在のブランチは含みません
+- デフォルトブランチは `origin/HEAD` から決めます。fetch はしないので、必要なら先に `git fetch --prune` してください
 
 ### anw edit
 
@@ -73,6 +81,20 @@ anw kill --port 3000    # 3000番を使っているプロセスを kill
 ```
 
 - SIGTERM を送ります
+
+### anw delete
+
+対象を選んで削除します。
+
+```sh
+anw delete --branch           # 一覧から選んで削除
+anw delete --force --branch   # マージされていなくても強制削除
+```
+
+- 対象は `anw view --branch` と同じです
+- Space で複数選べます。何も選ばずに Enter を押すと、カーソル位置のブランチを削除します
+- 通常は `git branch --delete` で削除するため、マージされていないブランチ（squash マージしたものなど）は削除されません
+- `--force` を付けると `git branch --delete --force` で強制削除します
 
 ### anw tidy
 
