@@ -6,7 +6,6 @@ import (
 	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
 	"github.com/yyYank/anw/internal/envfile"
 )
 
@@ -16,26 +15,6 @@ var (
 	showEnvPicker = runEnvPicker
 	openEditor    = runEditor
 )
-
-var (
-	envView bool
-	envEdit bool
-)
-
-var envCmd = &cobra.Command{
-	Use:   "env",
-	Short: "配下の env ファイルを探して、閲覧・編集する",
-	Args:  cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if envView && envEdit {
-			return errors.New("--view と --edit は同時に指定できません")
-		}
-		if envEdit {
-			return editEnv()
-		}
-		return viewEnv()
-	},
-}
 
 // findEnvFilesInWd はカレントディレクトリ配下の env ファイルを探す。見つからなければエラーにする。
 func findEnvFilesInWd() ([]string, error) {
@@ -105,10 +84,4 @@ func runEditor(editor, path string) error {
 	c := exec.Command("sh", "-c", editor+` "$1"`, "sh", path)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
-}
-
-func init() {
-	envCmd.Flags().BoolVar(&envView, "view", false, "一覧と内容のプレビュー")
-	envCmd.Flags().BoolVar(&envEdit, "edit", false, "選んだファイルを $EDITOR で編集")
-	rootCmd.AddCommand(envCmd)
 }

@@ -6,9 +6,9 @@ import (
 	"io"
 	"strconv"
 	"syscall"
+	"text/tabwriter"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
 	"github.com/yyYank/anw/internal/port"
 )
 
@@ -18,15 +18,6 @@ var (
 	killProcess    = func(pid int) error { return syscall.Kill(pid, syscall.SIGTERM) }
 	selectListener = runSelector
 )
-
-var portCmd = &cobra.Command{
-	Use:   "port [ポート番号]",
-	Short: "ポートを使っているプロセスを確認して止める",
-	Args:  cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return killPort(cmd.OutOrStdout(), args)
-	},
-}
 
 // parsePort は引数のポート番号を返す。引数がなければ ok は false。
 func parsePort(args []string) (n int, ok bool, err error) {
@@ -76,6 +67,34 @@ func killPort(w io.Writer, args []string) error {
 	return nil
 }
 
+// viewPort は LISTEN 中のポートを表で出力する。ポート番号があればそのポートだけにする。
+func viewPort(w io.Writer, args []string) error {
+	n, hasPort, err := parsePort(args)
+	if err != nil {
+		return err
+	}
+	ls, err := listListeners()
+	if err != nil {
+		return err
+	}
+	if hasPort {
+		ls = port.Find(ls, n)
+		if len(ls) == 0 {
+			return fmt.Errorf("%d番を使っているプロセスはありません", n)
+		}
+	}
+	if len(ls) == 0 {
+		return errors.New("LISTEN 中のポートはありません")
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "PORT\tPID\tNAME\tCOMMAND")
+	for _, l := range ls {
+		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\n", l.Port, l.PID, l.Name, l.Command)
+	}
+	return tw.Flush()
+}
+
 // runSelector は一覧の画面を表示し、選ばれた Listener を返す。
 func runSelector(ls []port.Listener) (port.Listener, bool, error) {
 	m, err := tea.NewProgram(port.NewSelector(ls)).Run()
@@ -84,8 +103,4 @@ func runSelector(ls []port.Listener) (port.Listener, bool, error) {
 	}
 	l, ok := m.(port.Selector).Selected()
 	return l, ok, nil
-}
-
-func init() {
-	rootCmd.AddCommand(portCmd)
 }

@@ -7,15 +7,15 @@ import (
 	"github.com/yyYank/anw/internal/port"
 )
 
-// anw port 3000 で 3000番を使っているプロセスを kill すること
-func TestPort_指定ポートのプロセスをkillする(t *testing.T) {
+// anw kill --port 3000 で 3000番を使っているプロセスを kill すること
+func TestKill_指定ポートのプロセスをkillする(t *testing.T) {
 	cli := setupCLI(t)
 	cli.listeners = []port.Listener{
 		{Port: 3000, PID: 873, Name: "node"},
 		{Port: 8080, PID: 900, Name: "java"},
 	}
 
-	if err := cli.run("port", "3000"); err != nil {
+	if err := cli.run("kill", "--port", "3000"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -25,11 +25,11 @@ func TestPort_指定ポートのプロセスをkillする(t *testing.T) {
 }
 
 // 使っているプロセスがなければエラーにし、何も kill しないこと
-func TestPort_該当なしはエラー(t *testing.T) {
+func TestKill_該当なしはエラー(t *testing.T) {
 	cli := setupCLI(t)
 	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
 
-	if err := cli.run("port", "9999"); err == nil {
+	if err := cli.run("kill", "--port", "9999"); err == nil {
 		t.Error("エラーにならなかった")
 	}
 
@@ -39,11 +39,11 @@ func TestPort_該当なしはエラー(t *testing.T) {
 }
 
 // ポート番号が数字でなければエラーにし、何も kill しないこと
-func TestPort_数字以外はエラー(t *testing.T) {
+func TestKill_数字以外はエラー(t *testing.T) {
 	cli := setupCLI(t)
 	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
 
-	if err := cli.run("port", "abc"); err == nil {
+	if err := cli.run("kill", "--port", "abc"); err == nil {
 		t.Error("エラーにならなかった")
 	}
 
@@ -53,7 +53,7 @@ func TestPort_数字以外はエラー(t *testing.T) {
 }
 
 // 引数なしでは一覧から選んだプロセスを kill すること
-func TestPort_一覧から選んでkillする(t *testing.T) {
+func TestKill_一覧から選んでkillする(t *testing.T) {
 	cli := setupCLI(t)
 	cli.listeners = []port.Listener{
 		{Port: 3000, PID: 873, Name: "node"},
@@ -61,7 +61,7 @@ func TestPort_一覧から選んでkillする(t *testing.T) {
 	}
 	cli.pick = 1
 
-	if err := cli.run("port"); err != nil {
+	if err := cli.run("kill", "--port"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,12 +71,12 @@ func TestPort_一覧から選んでkillする(t *testing.T) {
 }
 
 // 一覧で選ばずにやめたら何も kill しないこと
-func TestPort_一覧でやめたらkillしない(t *testing.T) {
+func TestKill_一覧でやめたらkillしない(t *testing.T) {
 	cli := setupCLI(t)
 	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
 	cli.pick = -1
 
-	if err := cli.run("port"); err != nil {
+	if err := cli.run("kill", "--port"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -86,14 +86,40 @@ func TestPort_一覧でやめたらkillしない(t *testing.T) {
 }
 
 // LISTEN 中のポートがなければ一覧を出さずにエラーにすること
-func TestPort_LISTENがなければエラー(t *testing.T) {
+func TestKill_LISTENがなければエラー(t *testing.T) {
 	cli := setupCLI(t)
 
-	if err := cli.run("port"); err == nil {
+	if err := cli.run("kill", "--port"); err == nil {
 		t.Error("エラーにならなかった")
 	}
 
 	if cli.shown {
 		t.Error("一覧が表示された")
+	}
+}
+
+// kill で対象のフラグがなければエラーにし、何も kill しないこと
+func TestKill_対象がなければエラー(t *testing.T) {
+	cli := setupCLI(t)
+	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
+
+	if err := cli.run("kill", "3000"); err == nil {
+		t.Error("エラーにならなかった")
+	}
+
+	if len(cli.killed) != 0 {
+		t.Errorf("kill された: %v", cli.killed)
+	}
+}
+
+// 旧サブコマンドの env / port は無くなっていること
+func TestKill_旧サブコマンドは使えない(t *testing.T) {
+	for _, name := range []string{"env", "port"} {
+		t.Run(name, func(t *testing.T) {
+			cli := setupCLI(t)
+			if err := cli.run(name); err == nil {
+				t.Errorf("anw %s がエラーにならなかった", name)
+			}
+		})
 	}
 }

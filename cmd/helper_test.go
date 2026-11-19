@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +31,9 @@ type testCLI struct {
 	// envPicker は env の一覧の画面が表示されたときの selectable。表示されなければ nil
 	envPicker *bool
 	edited    []string
+
+	// out はコマンドの標準出力
+	out bytes.Buffer
 }
 
 // setupCLI はテスト用の toml を書き出し、テスト用ディレクトリをカレントディレクトリにする
@@ -109,7 +113,8 @@ func (c *testCLI) run(args ...string) error {
 		sub.Flags().VisitAll(reset)
 	}
 	rootCmd.SetArgs(append([]string{"--config", c.configPath}, args...))
-	rootCmd.SetOut(io.Discard)
+	c.out.Reset()
+	rootCmd.SetOut(&c.out)
 	rootCmd.SetErr(io.Discard)
 	return rootCmd.Execute()
 }
