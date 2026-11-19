@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/yyYank/anw/internal/branch"
 	"github.com/yyYank/anw/internal/port"
 )
 
@@ -31,6 +32,16 @@ type testCLI struct {
 	// envPicker は env の一覧の画面が表示されたときの selectable。表示されなければ nil
 	envPicker *bool
 	edited    []string
+
+	branches []branch.Branch
+	// branchPick は ブランチの一覧の画面で選ぶ行。nil なら選ばずにやめる
+	branchPick []int
+	// branchShown はブランチの一覧の画面が表示されたか
+	branchShown bool
+	// deleted は削除したブランチ。force で消したものには "!" を付ける
+	deleted []string
+	// deleteFail は削除に失敗させるブランチ
+	deleteFail map[string]bool
 
 	// out はコマンドの標準出力
 	out bytes.Buffer
@@ -85,6 +96,29 @@ func setupCLI(t *testing.T) *testCLI {
 		return nil
 	}
 	t.Cleanup(func() { findEnvFiles, showEnvPicker, openEditor = origFind, origPicker, origEditor })
+
+	// 本物のリポジトリのブランチを調べたり消したりしないよう、偽物に差し替える
+	origBranches, origSelectBranches, origDelete := listBranches, selectBranches, deleteBranch
+	listBranches = func() ([]branch.Branch, error) { return c.branches, nil }
+	selectBranches = func(bs []branch.Branch) ([]branch.Branch, error) {
+		c.branchShown = true
+		var picked []branch.Branch
+		for _, i := range c.branchPick {
+			picked = append(picked, bs[i])
+		}
+		return picked, nil
+	}
+	deleteBranch = func(name string, force bool) error {
+		if c.deleteFail[name] {
+			return fmt.Errorf("%s は削除できません", name)
+		}
+		if force {
+			name += "!"
+		}
+		c.deleted = append(c.deleted, name)
+		return nil
+	}
+	t.Cleanup(func() { listBranches, selectBranches, deleteBranch = origBranches, origSelectBranches, origDelete })
 	return c
 }
 

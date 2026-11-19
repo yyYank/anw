@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yyYank/anw/internal/branch"
 	"github.com/yyYank/anw/internal/port"
 )
 
@@ -76,6 +77,28 @@ func TestView_port番号指定はそのプロセスだけ(t *testing.T) {
 	}
 	if len(cli.killed) != 0 {
 		t.Errorf("kill された: %v", cli.killed)
+	}
+}
+
+// view --branch で削除できるブランチと理由を出力し、何も削除しないこと
+func TestView_branchは一覧を出力する(t *testing.T) {
+	cli := setupCLI(t)
+	cli.branches = []branch.Branch{
+		{Name: "feature/a", Merged: true},
+		{Name: "feature/b", Gone: true},
+	}
+
+	if err := cli.run("view", "--branch"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, s := range []string{"feature/a", "マージ済み", "feature/b", "リモート削除済み"} {
+		if !strings.Contains(cli.out.String(), s) {
+			t.Errorf("%q が出力されていない:\n%s", s, cli.out.String())
+		}
+	}
+	if cli.branchShown || len(cli.deleted) != 0 {
+		t.Error("選択の画面が出たか削除された")
 	}
 }
 
