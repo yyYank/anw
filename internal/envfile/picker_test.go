@@ -100,3 +100,98 @@ func TestPicker_ウィンドウ幅に収まる(t *testing.T) {
 		}
 	}
 }
+
+var searchFiles = []string{".env", "apps/front/.env.local", "apps/api/.env"}
+
+var searchContents = map[string]string{
+	".env":                  "DEBUG=true\n",
+	"apps/front/.env.local": "NEXT_PUBLIC_URL=http://localhost:3000\n",
+	"apps/api/.env":         "API_PORT=8080\nDB_HOST=localhost\n",
+}
+
+func loadSearch(path string) string { return searchContents[path] }
+
+// typed は文字の入力を表すキー
+func typed(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+
+var keyCtrlG = tea.KeyMsg{Type: tea.KeyCtrlG}
+
+// / でパスを部分列で絞り込み、Enter で通常モードに戻ってから Enter で選べること
+func TestPicker_スラッシュでパスを絞り込む(t *testing.T) {
+	for _, q := range []string{"front", "apps/front", "afl"} {
+		t.Run(q, func(t *testing.T) {
+			m := press(NewPicker(searchFiles, loadSearch, true), typed("/"), typed(q), keyEnter)
+			if m.Mode() != "" {
+				t.Fatalf("1回目の Enter で通常モードに戻っていない: %q", m.Mode())
+			}
+			if _, ok := m.Selected(); ok {
+				t.Fatal("1回目の Enter で選ばれてしまった")
+			}
+
+			m = press(m, keyEnter)
+
+			if got, ok := m.Selected(); !ok || got != "apps/front/.env.local" {
+				t.Errorf("got %q, ok=%v", got, ok)
+			}
+		})
+	}
+}
+
+// Ctrl+G でファイルの中身から絞り込めること。大文字小文字は区別しない
+func TestPicker_CtrlGで中身から絞り込む(t *testing.T) {
+	for _, q := range []string{"8080", "API", "port"} {
+		t.Run(q, func(t *testing.T) {
+			m := press(NewPicker(searchFiles, loadSearch, true), keyCtrlG, typed(q), keyEnter, keyEnter)
+
+			if got, ok := m.Selected(); !ok || got != "apps/api/.env" {
+				t.Errorf("got %q, ok=%v", got, ok)
+			}
+		})
+	}
+}
+
+// 入力モードで Esc を押すと、絞り込みを解除して通常モードに戻ること
+func TestPicker_Escで絞り込みを解除する(t *testing.T) {
+	m := press(NewPicker(searchFiles, loadSearch, true), typed("/"), typed("front"), keyEsc)
+
+	if m.Mode() != "" {
+		t.Errorf("通常モードに戻っていない: %q", m.Mode())
+	}
+	view := m.View()
+	for _, f := range searchFiles {
+		if !strings.Contains(view, f) {
+			t.Errorf("%q が表示されていない:\n%s", f, view)
+		}
+	}
+	// 通常モードの Esc は今までどおり終了する
+	if _, ok := press(m, keyEsc).Selected(); ok {
+		t.Error("選ばれてしまった")
+	}
+}
+
+// 入力モードでは j / k / q は移動や終了ではなく文字として入ること
+func TestPicker_入力モードではjkqを文字として扱う(t *testing.T) {
+	m := press(NewPicker(searchFiles, loadSearch, true), keyCtrlG, typed("j"), typed("k"), typed("q"))
+
+	if m.Mode() == "" || m.Query() != "jkq" {
+		t.Errorf("mode=%q query=%q", m.Mode(), m.Query())
+	}
+}
+
+// 一致するファイルがなければ、Enter を押しても何も選ばれないこと
+func TestPicker_一致がなければ選ばない(t *testing.T) {
+	m := press(NewPicker(searchFiles, loadSearch, true), typed("/"), typed("zzz"), keyEnter, keyEnter)
+
+	if _, ok := m.Selected(); ok {
+		t.Error("選ばれてしまった")
+	}
+}
+
+// 入力中は今のモードと入力した文字が表示されること
+func TestPicker_入力中はモードを表示する(t *testing.T) {
+	view := press(NewPicker(searchFiles, loadSearch, true), keyCtrlG, typed("8080")).View()
+
+	if !strings.Contains(view, "8080") || !strings.Contains(view, "grep") {
+		t.Errorf("モードと入力が表示されていない:\n%s", view)
+	}
+}

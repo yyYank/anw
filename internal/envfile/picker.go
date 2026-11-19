@@ -11,35 +11,61 @@ import (
 // ウィンドウサイズがまだ分からないときに使う幅
 const defaultWidth = 80
 
+// 絞り込みの入力モード。通常モードは空文字
+const (
+	modeNormal = ""
+	modePath   = "path"
+	modeGrep   = "grep"
+)
+
 var (
 	paneStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 	titleStyle  = lipgloss.NewStyle().Bold(true)
 	cursorStyle = lipgloss.NewStyle().Reverse(true)
+	matchStyle  = lipgloss.NewStyle().Bold(true).Underline(true)
 	helpStyle   = lipgloss.NewStyle().Faint(true)
 )
 
 // Picker は env ファイルの一覧と、カーソル位置のファイルの内容を表示する TUI。
+// / でパスを、Ctrl+G で中身を検索して一覧を絞り込める。
 type Picker struct {
 	items      []string
-	load       func(path string) string
+	contents   []string
 	selectable bool
-	cursor     int
-	selected   bool
-	width      int
-	height     int
+	// visible は絞り込んだ後に表示する items の添字。cursor はこの中の位置
+	visible  []int
+	cursor   int
+	selected bool
+	mode     string
+	// filter は絞り込みに使っている検索の種類。query と組で、通常モードに戻っても残る
+	filter string
+	query  string
+	width  int
+	height int
 }
 
 // NewPicker は items を表示する Picker を返す。
-// load はプレビューに表示する内容を返す。selectable が true なら Enter で選べる。
+// load はプレビューと中身の検索に使う内容を返す。selectable が true なら Enter で選べる。
 func NewPicker(items []string, load func(path string) string, selectable bool) Picker {
-	return Picker{items: items, load: load, selectable: selectable}
+	contents := make([]string, len(items))
+	for i, item := range items {
+		contents[i] = load(item)
+	}
+	m := Picker{items: items, contents: contents, selectable: selectable}
+	m.refilter()
+	return m
 }
 
 // Init は tea.Model の実装。
 func (m Picker) Init() tea.Cmd { return nil }
 
-// Update はキー入力でカーソルを動かし、Enter で選択、Esc / q / Ctrl+C で終了する。
-// ウィンドウサイズの変更を受け取ると、描画をその大きさに合わせる。
+// Mode は今の入力モードを返す。通常モードなら空文字。
+func (m Picker) Mode() string { return m.mode }
+
+// Query は絞り込みに使っている文字列を返す。
+func (m Picker) Query() string { return m.query }
+
+// Update はキー入力を処理する。ウィンドウサイズの変更を受け取ると、描画をその大きさに合わせる。
 func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = size.Width, size.Height
@@ -49,17 +75,20 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	if m.mode != modeNormal {
+		return m.updateInput(key)
+	}
 	switch key.String() {
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.moveCursor(-1)
 	case "down", "j":
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
-		}
+		m.moveCursor(1)
+	case "/":
+		m.startInput(modePath)
+	case "ctrl+g":
+		m.startInput(modeGrep)
 	case "enter":
-		if m.selectable && len(m.items) > 0 {
+		if m.selectable && len(m.visible) > 0 {
 			m.selected = true
 			return m, tea.Quit
 		}
@@ -69,15 +98,73 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateInput は入力モードのキー入力を処理する。
+// Enter は絞り込みを残して、Esc は絞り込みを解除して通常モードに戻る。
+func (m Picker) updateInput(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyUp, tea.KeyCtrlP:
+		m.moveCursor(-1)
+	case tea.KeyDown, tea.KeyCtrlN:
+		m.moveCursor(1)
+	case tea.KeyEnter:
+		m.mode = modeNormal
+	case tea.KeyEsc:
+		m.mode, m.query = modeNormal, ""
+		m.refilter()
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	case tea.KeyBackspace:
+		if r := []rune(m.query); len(r) > 0 {
+			m.query = string(r[:len(r)-1])
+			m.refilter()
+		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.query += string(key.Runes)
+		m.refilter()
+	}
+	return m, nil
+}
+
+// startInput は mode の入力モードに入り、新しく入力を始める。
+func (m *Picker) startInput(mode string) {
+	m.mode, m.filter, m.query = mode, mode, ""
+	m.refilter()
+}
+
+// moveCursor はカーソルを delta 行動かす。一覧の外には出ない。
+func (m *Picker) moveCursor(delta int) {
+	m.cursor = min(max(m.cursor+delta, 0), max(len(m.visible)-1, 0))
+}
+
+// refilter は query で一覧を絞り込み直し、カーソルを先頭に戻す。
+func (m *Picker) refilter() {
+	// Picker は値で受け渡されるので、元の slice を書き換えないよう作り直す
+	var visible []int
+	for i := range m.items {
+		if m.matches(i) {
+			visible = append(visible, i)
+		}
+	}
+	m.visible, m.cursor = visible, 0
+}
+
+// matches は items[i] が今の絞り込みに一致するかを返す。
+func (m Picker) matches(i int) bool {
+	if m.query == "" {
+		return true
+	}
+	if m.filter == modeGrep {
+		return containsFold(m.contents[i], m.query)
+	}
+	_, ok := fuzzyMatch(m.items[i], m.query)
+	return ok
+}
+
 // View は左に一覧、右にカーソル位置のファイルのプレビューを並べて描画する。
 func (m Picker) View() string {
 	width := m.width
 	if width <= 0 {
 		width = defaultWidth
-	}
-	help := "↑↓/jk: 移動  q: 終了"
-	if m.selectable {
-		help = "↑↓/jk: 移動  Enter: 編集  q: やめる"
 	}
 
 	// 枠とパディングで左右それぞれ4桁使う
@@ -96,28 +183,85 @@ func (m Picker) View() string {
 	}
 
 	list := []string{titleStyle.Render("env ファイル")}
-	start, end := window(len(m.items), m.cursor, rows)
+	start, end := window(len(m.visible), m.cursor, rows)
 	for i := start; i < end; i++ {
-		line := "  " + m.items[i]
 		if i == m.cursor {
-			line = cursorStyle.Render("> " + m.items[i])
+			list = append(list, cursorStyle.Render("> ")+m.highlightPath(m.items[m.visible[i]], cursorStyle))
+		} else {
+			list = append(list, "  "+m.highlightPath(m.items[m.visible[i]], lipgloss.NewStyle()))
 		}
-		list = append(list, line)
+	}
+	if len(m.visible) == 0 {
+		list = append(list, helpStyle.Render("  (一致なし)"))
 	}
 
 	preview := []string{}
-	if len(m.items) > 0 {
-		preview = append(preview, titleStyle.Render(m.items[m.cursor]))
-		content := strings.Split(strings.TrimRight(m.load(m.items[m.cursor]), "\n"), "\n")
+	if len(m.visible) > 0 {
+		i := m.visible[m.cursor]
+		preview = append(preview, titleStyle.Render(m.items[i]))
+		content := strings.Split(strings.TrimRight(m.contents[i], "\n"), "\n")
 		_, end := window(len(content), 0, rows)
-		preview = append(preview, content[:end]...)
+		for _, line := range content[:end] {
+			if m.filter == modeGrep && m.query != "" && containsFold(line, m.query) {
+				line = matchStyle.Render(line)
+			}
+			preview = append(preview, line)
+		}
 	}
 
 	panes := lipgloss.JoinHorizontal(lipgloss.Top,
 		paneStyle.Render(fit(list, listWidth)),
 		paneStyle.Render(fit(preview, previewWidth)),
 	)
-	return panes + "\n" + helpStyle.Render(ansi.Truncate(help, width, "…"))
+	return panes + "\n" + ansi.Truncate(m.statusLine(), width, "…")
+}
+
+// highlightPath は path を base で描画し、パスの絞り込みで一致した文字をさらに強調する。
+func (m Picker) highlightPath(path string, base lipgloss.Style) string {
+	var pos []int
+	if m.filter == modePath && m.query != "" {
+		pos, _ = fuzzyMatch(path, m.query)
+	}
+	if len(pos) == 0 {
+		return base.Render(path)
+	}
+	hit := map[int]bool{}
+	for _, p := range pos {
+		hit[p] = true
+	}
+	// 強調の後で base が切れないよう、1文字ずつ描画する
+	match := matchStyle.Inherit(base)
+	var b strings.Builder
+	for i, r := range []rune(path) {
+		if hit[i] {
+			b.WriteString(match.Render(string(r)))
+		} else {
+			b.WriteString(base.Render(string(r)))
+		}
+	}
+	return b.String()
+}
+
+// statusLine は画面の一番下に出す、入力中の文字かキーの説明を返す。
+func (m Picker) statusLine() string {
+	switch m.mode {
+	case modePath:
+		return "/" + m.query + "▏" + helpStyle.Render("  Enter: 確定  Esc: 解除")
+	case modeGrep:
+		return "grep: " + m.query + "▏" + helpStyle.Render("  Enter: 確定  Esc: 解除")
+	}
+	help := "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  q: 終了"
+	if m.selectable {
+		help = "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  Enter: 編集  q: やめる"
+	}
+	if m.query != "" {
+		prefix := "/"
+		if m.filter == modeGrep {
+			prefix = "grep: "
+		}
+		return prefix + m.query + "  " + helpStyle.Render(help)
+	}
+	return helpStyle.Render(help)
 }
 
 // window は n 行のうち、cursor が見える最大 rows 行の範囲 [start, end) を返す。rows が負なら全体を返す。
@@ -142,5 +286,5 @@ func (m Picker) Selected() (string, bool) {
 	if !m.selected {
 		return "", false
 	}
-	return m.items[m.cursor], true
+	return m.items[m.visible[m.cursor]], true
 }
