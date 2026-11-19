@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var files = []string{".env", "app/.env.local"}
@@ -72,5 +73,30 @@ func TestPicker_Escでキャンセル(t *testing.T) {
 
 	if _, ok := m.Selected(); ok {
 		t.Error("選ばれてしまった")
+	}
+}
+
+// ウィンドウ幅が分かると、左に一覧・右にプレビューが横並びで表示されること
+func TestPicker_一覧とプレビューを左右に並べる(t *testing.T) {
+	m, _ := NewPicker(files, fakeLoad, true).Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	view := m.View()
+
+	for _, line := range strings.Split(view, "\n") {
+		// 一覧の ".env" とプレビューの "CONTENT_OF .env" が同じ行にあれば ".env" は2回現れる
+		if strings.Contains(line, "CONTENT_OF .env") && strings.Count(line, ".env") >= 2 {
+			return
+		}
+	}
+	t.Errorf("一覧とプレビューが同じ行に並んでいない:\n%s", view)
+}
+
+// 描画がウィンドウ幅に収まること
+func TestPicker_ウィンドウ幅に収まる(t *testing.T) {
+	m, _ := NewPicker(files, fakeLoad, true).Update(tea.WindowSizeMsg{Width: 40, Height: 20})
+
+	for _, line := range strings.Split(m.View(), "\n") {
+		if w := lipgloss.Width(line); w > 40 {
+			t.Errorf("幅 %d がウィンドウ幅 40 を超えている: %q", w, line)
+		}
 	}
 }
