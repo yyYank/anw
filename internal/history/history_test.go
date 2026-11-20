@@ -4,12 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/yyYank/anw/internal/tidy"
 )
 
-// 保存した移動の記録をそのまま読み戻せること
+// 保存した移動の記録を、tidy の履歴として読み戻せること
 func TestSaveLoad_保存した記録を読み戻せる(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".anw", "history.json")
 	moves := []tidy.Move{
@@ -25,8 +26,44 @@ func TestSaveLoad_保存した記録を読み戻せる(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(got, moves) {
-		t.Errorf("got %+v, want %+v", got, moves)
+	if got.Kind != KindTidy || !reflect.DeepEqual(got.Moves, moves) {
+		t.Errorf("got %+v, want tidy %+v", got, moves)
+	}
+}
+
+// 保存したファイルには操作の種類が書かれていること
+func TestSave_操作の種類を書く(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+
+	if err := Save(path, []tidy.Move{{From: "/a/x", To: "/a/d/x"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"kind":"tidy"`) {
+		t.Errorf("種類が書かれていない: %s", data)
+	}
+}
+
+// 移動の配列だけの古い形式の履歴も、tidy の履歴として読めること
+func TestLoad_古い形式はtidyとして読む(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	old := `[{"From":"/a/memo.md","To":"/a/2026-10-27/memo.md"}]`
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []tidy.Move{{From: "/a/memo.md", To: "/a/2026-10-27/memo.md"}}
+	if got.Kind != KindTidy || !reflect.DeepEqual(got.Moves, want) {
+		t.Errorf("got %+v", got)
 	}
 }
 
