@@ -22,8 +22,8 @@ anw <動詞> --<対象>
 
 | 動詞 | 内容 | 対象 |
 | --- | --- | --- |
-| `view` | 見る | `--env` `--port` `--branch` |
-| `edit` | 編集する | `--env` |
+| `view` | 見る | `--env` `--port` `--branch` `--dotfiles` |
+| `edit` | 編集する | `--env` `--dotfiles` |
 | `kill` | プロセスを止める | `--port` |
 | `delete` | 削除する | `--branch` |
 | `tidy` | ファイルを振り分ける | |
@@ -36,7 +36,7 @@ anw <動詞> --<対象>
 対象を省略して動詞だけ打つと、その動詞で使える対象から選べます。選んだあとは、フラグを付けた場合と同じ動作になります。
 
 ```sh
-anw view            # env / port / branch から選ぶ
+anw view            # env / port / branch / dotfiles から選ぶ
 anw view --env      # 選択を挟まず直行
 ```
 
@@ -46,6 +46,7 @@ view: 何を見ますか？
 > env      env ファイルの一覧と内容のプレビュー
   port     LISTEN 中のポートの一覧
   branch   削除できるブランチの一覧
+  dotfiles ホームの設定ファイルの一覧と内容のプレビュー
 ```
 
 | キー | 動き |
@@ -54,7 +55,7 @@ view: 何を見ますか？
 | `Enter` | 決定 |
 | `q` / `Esc` | 終了 |
 
-- 対象が1つしかない動詞（`edit`、`kill`、`delete`）は、選択を挟まずにその対象へ進みます
+- 対象が1つしかない動詞（`kill`、`delete`）は、選択を挟まずにその対象へ進みます
 - `anw` だけを打つと、動詞と対象の対応表を出します
 - その動詞で使えない対象を指定すると、使える対象を表示します（例: `anw kill --env` → `kill で使えるのは --port です`）
 
@@ -69,6 +70,7 @@ anw view --env          # env ファイルの一覧と内容のプレビュー
 anw view --port         # LISTEN 中のポートの一覧
 anw view --port 3000    # 3000番を使っているプロセス
 anw view --branch       # 削除できるブランチの一覧
+anw view --dotfiles     # ホームの設定ファイルの一覧と内容のプレビュー
 ```
 
 **`--env`**
@@ -96,15 +98,25 @@ anw view --branch       # 削除できるブランチの一覧
 - 現在のブランチは含みません
 - デフォルトブランチは `origin/HEAD` から決めます。fetch はしないので、必要なら先に `git fetch --prune` してください
 
+**`--dotfiles`**
+
+- ホーム直下のドットファイル（`.zshrc`、`.gitconfig` など）と、`~/.config` 配下の3階層までを検出します
+- ホーム直下のドットディレクトリ（`~/.ssh` など）の中は探索しません
+- シンボリックリンクはリンク先をたどります
+- テキストでないファイル、1MB を超えるファイル、`cache`・`Cache`・`logs` ディレクトリの中は対象外です
+- 画面と操作は `--env` と同じです（`/` でパス、`Ctrl+G` で中身を絞り込み）
+- 管理はしません。探して見る・開くだけです
+
 ### anw edit
 
 対象を選んで編集します。
 
 ```sh
 anw edit --env
+anw edit --dotfiles
 ```
 
-- 対象は `anw view --env` と同じです
+- 対象は `anw view --env`、`anw view --dotfiles` と同じです
 - `$EDITOR` でファイルを開きます
 - 見つかったファイルが1つだけなら、選択を挟まずに開きます
 
