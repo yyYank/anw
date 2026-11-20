@@ -11,7 +11,7 @@ import (
 
 var undoCmd = &cobra.Command{
 	Use:   "undo",
-	Short: "直前のファイル操作を元に戻す",
+	Short: "直前の操作（tidy・delete --branch）を元に戻す",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, err := historyPath()

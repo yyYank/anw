@@ -34,3 +34,10 @@ func TestUndo_履歴がなければエラー(t *testing.T) {
 		t.Error("エラーにならなかった")
 	}
 }
+
+// undo の説明が、ファイル操作だけでなくブランチの削除にも触れていること
+func TestUndo_説明は対応する操作に触れる(t *testing.T) {
+	if undoCmd.Short != "直前の操作（tidy・delete --branch）を元に戻す" {
+		t.Errorf("Short = %q", undoCmd.Short)
+	}
+}
