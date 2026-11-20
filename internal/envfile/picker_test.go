@@ -208,3 +208,25 @@ func TestPicker_見出しを変えられる(t *testing.T) {
 		t.Errorf("見出しが変わっていない:\n%s", view)
 	}
 }
+
+// 中身を直接渡して作れ、WithLabels で表示を変えても、/ の絞り込みは元の文字列で行うこと
+func TestPicker_表示と絞り込みの文字列を分ける(t *testing.T) {
+	keys := []string{"/work/app", "/work/web"}
+	labels := []string{"11-01 claude app 「ログイン」", "11-03 codex web 「API」"}
+	contents := []string{"会話1", "会話2"}
+	m := NewPickerWithContents(keys, contents, true).WithLabels(labels)
+
+	view := m.View()
+	if !strings.Contains(view, labels[0]) || !strings.Contains(view, "会話1") {
+		t.Errorf("表示の文字列か中身が出ていない:\n%s", view)
+	}
+
+	// 表示の文字列にしかない「codex」では一致せず、元の文字列の「web」で一致する
+	if _, ok := press(m, typed("/"), typed("codex"), keyEnter, keyEnter).Selected(); ok {
+		t.Error("表示の文字列で一致してしまった")
+	}
+	got := press(m, typed("/"), typed("web"), keyEnter, keyEnter)
+	if i, ok := got.SelectedIndex(); !ok || i != 1 {
+		t.Errorf("SelectedIndex = %d, ok=%v", i, ok)
+	}
+}

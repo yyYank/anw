@@ -29,9 +29,11 @@ var (
 // Picker は env ファイルの一覧と、カーソル位置のファイルの内容を表示する TUI。
 // / でパスを、Ctrl+G で中身を検索して一覧を絞り込める。
 type Picker struct {
-	title      string
-	items      []string
-	contents   []string
+	title    string
+	items    []string
+	contents []string
+	// labels は一覧とプレビューの見出しに表示する文字列。nil なら items を表示する
+	labels     []string
 	selectable bool
 	// visible は絞り込んだ後に表示する items の添字。cursor はこの中の位置
 	visible  []int
@@ -52,9 +54,28 @@ func NewPicker(items []string, load func(path string) string, selectable bool) P
 	for i, item := range items {
 		contents[i] = load(item)
 	}
+	return NewPickerWithContents(items, contents, selectable)
+}
+
+// NewPickerWithContents は items を表示し、contents[i] を items[i] のプレビューと中身の検索に使う Picker を返す。
+func NewPickerWithContents(items, contents []string, selectable bool) Picker {
 	m := Picker{title: "env ファイル", items: items, contents: contents, selectable: selectable}
 	m.refilter()
 	return m
+}
+
+// WithLabels は表示する文字列を labels にした Picker を返す。/ の絞り込みは元の items で行う。
+func (m Picker) WithLabels(labels []string) Picker {
+	m.labels = labels
+	return m
+}
+
+// label は i 番目に表示する文字列を返す。
+func (m Picker) label(i int) string {
+	if m.labels != nil {
+		return m.labels[i]
+	}
+	return m.items[i]
 }
 
 // WithTitle は一覧の見出しを title にした Picker を返す。
@@ -177,8 +198,8 @@ func (m Picker) View() string {
 	// 枠とパディングで左右それぞれ4桁使う
 	const frame = 4
 	listWidth := 0
-	for _, item := range m.items {
-		listWidth = max(listWidth, lipgloss.Width(item)+2)
+	for i := range m.items {
+		listWidth = max(listWidth, lipgloss.Width(m.label(i))+2)
 	}
 	listWidth = min(listWidth, (width-2*frame)/2)
 	previewWidth := width - 2*frame - listWidth
@@ -193,9 +214,9 @@ func (m Picker) View() string {
 	start, end := window(len(m.visible), m.cursor, rows)
 	for i := start; i < end; i++ {
 		if i == m.cursor {
-			list = append(list, cursorStyle.Render("> ")+m.highlightPath(m.items[m.visible[i]], cursorStyle))
+			list = append(list, cursorStyle.Render("> ")+m.highlightLabel(m.visible[i], cursorStyle))
 		} else {
-			list = append(list, "  "+m.highlightPath(m.items[m.visible[i]], lipgloss.NewStyle()))
+			list = append(list, "  "+m.highlightLabel(m.visible[i], lipgloss.NewStyle()))
 		}
 	}
 	if len(m.visible) == 0 {
@@ -205,7 +226,7 @@ func (m Picker) View() string {
 	preview := []string{}
 	if len(m.visible) > 0 {
 		i := m.visible[m.cursor]
-		preview = append(preview, titleStyle.Render(m.items[i]))
+		preview = append(preview, titleStyle.Render(m.label(i)))
 		content := strings.Split(strings.TrimRight(m.contents[i], "\n"), "\n")
 		_, end := window(len(content), 0, rows)
 		for _, line := range content[:end] {
@@ -221,6 +242,14 @@ func (m Picker) View() string {
 		paneStyle.Render(fit(preview, previewWidth)),
 	)
 	return panes + "\n" + ansi.Truncate(m.statusLine(), width, "…")
+}
+
+// highlightLabel は i 番目を base で描画する。表示の文字列が items と同じときだけ、一致した文字を強調する。
+func (m Picker) highlightLabel(i int, base lipgloss.Style) string {
+	if m.labels != nil {
+		return base.Render(m.labels[i])
+	}
+	return m.highlightPath(m.items[i], base)
 }
 
 // highlightPath は path を base で描画し、パスの絞り込みで一致した文字をさらに強調する。
@@ -294,4 +323,12 @@ func (m Picker) Selected() (string, bool) {
 		return "", false
 	}
 	return m.items[m.visible[m.cursor]], true
+}
+
+// SelectedIndex は選ばれた要素の添字を返す。選ばれていなければ ok は false。
+func (m Picker) SelectedIndex() (int, bool) {
+	if !m.selected {
+		return 0, false
+	}
+	return m.visible[m.cursor], true
 }
