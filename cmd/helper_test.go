@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/yyYank/anw/internal/aisession"
 	"github.com/yyYank/anw/internal/branch"
 	"github.com/yyYank/anw/internal/choose"
 	"github.com/yyYank/anw/internal/port"
@@ -58,6 +59,16 @@ type testCLI struct {
 	filePick int
 	// filePicker は汎用の一覧の画面が表示されたときの引数。表示されなければ nil
 	filePicker *filePickerCall
+
+	sessions []aisession.Session
+	// repos は作業ディレクトリから所属するリポジトリへの対応。ないディレクトリは自身をリポジトリとし、存在するものとみなす
+	repos map[string]string
+	// missing は存在しないとみなす作業ディレクトリ
+	missing map[string]bool
+	// sessionPick はセッションの一覧で選ぶ行。-1 なら選ばずにやめる
+	sessionPick int
+	// sessionPicker はセッションの一覧に渡された引数。表示されなければ nil
+	sessionPicker *sessionPickerCall
 
 	// out はコマンドの標準出力
 	out bytes.Buffer
@@ -150,6 +161,27 @@ func setupCLI(t *testing.T) *testCLI {
 	}
 	t.Cleanup(func() { findDotfiles, homeDir, showFilePicker = origFindDot, origHome, origFilePicker })
 
+	// 本物のセッションを読んだり git を実行したりしないよう、偽物に差し替える
+	origCollect, origRepo, origSessionPicker := collectSessions, repoOf, showSessionPicker
+	collectSessions = func(string) ([]aisession.Session, error) { return c.sessions, nil }
+	repoOf = func(dir string) (string, bool) {
+		if c.missing[dir] {
+			return dir, false
+		}
+		if r, ok := c.repos[dir]; ok {
+			return r, true
+		}
+		return dir, true
+	}
+	showSessionPicker = func(keys, labels, contents []string) (int, bool, error) {
+		c.sessionPicker = &sessionPickerCall{keys: keys, labels: labels, contents: contents}
+		if c.sessionPick < 0 {
+			return 0, false, nil
+		}
+		return c.sessionPick, true, nil
+	}
+	t.Cleanup(func() { collectSessions, repoOf, showSessionPicker = origCollect, origRepo, origSessionPicker })
+
 	// 対象を選ぶ画面を出さないよう、偽物に差し替える
 	origChoose := chooseTarget
 	chooseTarget = func(title string, items []choose.Item) (string, bool, error) {
@@ -166,6 +198,13 @@ type filePickerCall struct {
 	base       string
 	files      []string
 	selectable bool
+}
+
+// sessionPickerCall はセッションの一覧に渡された引数
+type sessionPickerCall struct {
+	keys     []string
+	labels   []string
+	contents []string
 }
 
 // createFile はテスト用ディレクトリにテスト対象のファイルを作り、更新日時を設定する

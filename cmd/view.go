@@ -10,6 +10,8 @@ func init() {
 			run: func(cmd *cobra.Command, args []string) error { return viewPort(cmd.OutOrStdout(), args) }},
 		{name: "branch", desc: "削除できるブランチの一覧",
 			run: func(cmd *cobra.Command, args []string) error { return viewBranches(cmd.OutOrStdout()) }},
+		{name: "ai", desc: "コーディングエージェントのセッション", argHint: "[.]",
+			run: func(cmd *cobra.Command, args []string) error { return viewAI(cmd.OutOrStdout(), args) }},
 		{name: "dotfiles", desc: "ホームの設定ファイルの一覧と内容のプレビュー",
 			run: func(cmd *cobra.Command, args []string) error { return viewDotfiles() }},
 	})
