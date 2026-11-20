@@ -51,6 +51,14 @@ type testCLI struct {
 	// targetTitle は対象を選ぶ画面の見出し
 	targetTitle string
 
+	// home は dotfiles を探すホームに見立てたテスト用ディレクトリ
+	home     string
+	dotfiles []string
+	// filePick は汎用の一覧の画面で選ぶ行。-1 なら選ばずにやめる
+	filePick int
+	// filePicker は汎用の一覧の画面が表示されたときの引数。表示されなければ nil
+	filePicker *filePickerCall
+
 	// out はコマンドの標準出力
 	out bytes.Buffer
 }
@@ -128,6 +136,20 @@ func setupCLI(t *testing.T) *testCLI {
 	}
 	t.Cleanup(func() { listBranches, selectBranches, deleteBranch = origBranches, origSelectBranches, origDelete })
 
+	// 本物のホームを読まないよう、ホームをテスト用ディレクトリに差し替える
+	c.home = filepath.Join(dir, "home")
+	origFindDot, origHome, origFilePicker := findDotfiles, homeDir, showFilePicker
+	findDotfiles = func(string) ([]string, error) { return c.dotfiles, nil }
+	homeDir = func() (string, error) { return c.home, nil }
+	showFilePicker = func(title, base string, files []string, selectable bool) (string, bool, error) {
+		c.filePicker = &filePickerCall{title: title, base: base, files: files, selectable: selectable}
+		if !selectable || c.filePick < 0 {
+			return "", false, nil
+		}
+		return files[c.filePick], true, nil
+	}
+	t.Cleanup(func() { findDotfiles, homeDir, showFilePicker = origFindDot, origHome, origFilePicker })
+
 	// 対象を選ぶ画面を出さないよう、偽物に差し替える
 	origChoose := chooseTarget
 	chooseTarget = func(title string, items []choose.Item) (string, bool, error) {
@@ -136,6 +158,14 @@ func setupCLI(t *testing.T) *testCLI {
 	}
 	t.Cleanup(func() { chooseTarget = origChoose })
 	return c
+}
+
+// filePickerCall は汎用の一覧の画面に渡された引数
+type filePickerCall struct {
+	title      string
+	base       string
+	files      []string
+	selectable bool
 }
 
 // createFile はテスト用ディレクトリにテスト対象のファイルを作り、更新日時を設定する
