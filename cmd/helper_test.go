@@ -146,6 +146,11 @@ func setupCLI(t *testing.T) *testCLI {
 		return nil
 	}
 	t.Cleanup(func() { listBranches, selectBranches, deleteBranch = origBranches, origSelectBranches, origDelete })
+	origSnapshot := snapshotBranch
+	snapshotBranch = func(name string) (branch.Saved, error) {
+		return branch.Saved{Repo: "/repo", Name: name, Commit: "c-" + name}, nil
+	}
+	t.Cleanup(func() { snapshotBranch = origSnapshot })
 
 	// 本物のホームを読まないよう、ホームをテスト用ディレクトリに差し替える
 	c.home = filepath.Join(dir, "home")

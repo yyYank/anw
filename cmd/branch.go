@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/yyYank/anw/internal/branch"
+	"github.com/yyYank/anw/internal/history"
 )
 
 // テストで差し替えられるよう変数にしておく
@@ -15,6 +16,7 @@ var (
 	listBranches   = branch.List
 	selectBranches = runBranchSelector
 	deleteBranch   = branch.Delete
+	snapshotBranch = branch.Snapshot
 )
 
 // listDeletableBranches は削除できるブランチを返す。なければエラーにする。
@@ -45,6 +47,7 @@ func viewBranches(w io.Writer) error {
 
 // deleteBranches は一覧から選んだブランチを削除する。force なら強制削除する。
 // 削除できないブランチがあっても残りは削除し、最後にエラーを返す。
+// 削除できたブランチは、undo で作り直せるよう履歴に書く。
 func deleteBranches(out, errOut io.Writer, force bool) error {
 	bs, err := listDeletableBranches()
 	if err != nil {
@@ -56,13 +59,29 @@ func deleteBranches(out, errOut io.Writer, force bool) error {
 	}
 
 	failed := 0
+	var deleted []branch.Saved
 	for _, b := range picked {
-		if err := deleteBranch(b.Name, force); err != nil {
+		// 作り直せるよう、削除する前に記録する。記録できなければ削除しない
+		saved, err := snapshotBranch(b.Name)
+		if err == nil {
+			err = deleteBranch(b.Name, force)
+		}
+		if err != nil {
 			fmt.Fprintf(errOut, "削除できませんでした: %s: %v\n", b.Name, err)
 			failed++
 			continue
 		}
+		deleted = append(deleted, saved)
 		fmt.Fprintf(out, "deleted %s\n", b.Name)
+	}
+	if len(deleted) > 0 {
+		path, err := historyPath()
+		if err == nil {
+			err = history.SaveBranches(path, deleted)
+		}
+		if err != nil {
+			return fmt.Errorf("削除したブランチを履歴に書けませんでした: %w", err)
+		}
 	}
 	if failed > 0 {
 		if !force {

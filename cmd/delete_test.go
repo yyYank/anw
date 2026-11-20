@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/yyYank/anw/internal/branch"
+	"github.com/yyYank/anw/internal/history"
 )
 
 var deletable = []branch.Branch{
@@ -104,5 +107,38 @@ func TestDelete_対象がなければbranchに進む(t *testing.T) {
 	}
 	if want := []string{"feature/a!"}; !reflect.DeepEqual(cli.deleted, want) {
 		t.Errorf("deleted %v, want %v", cli.deleted, want)
+	}
+}
+
+// 削除できたブランチだけを、undo で作り直せるよう履歴に書くこと
+func TestDelete_削除したブランチを履歴に書く(t *testing.T) {
+	cli := setupCLI(t)
+	cli.branches = deletable
+	cli.branchPick = []int{0, 1}
+	cli.deleteFail = map[string]bool{deletable[1].Name: true}
+
+	_ = cli.run("delete", "--branch")
+
+	r, err := history.Load(filepath.Join(cli.historyDir, "history.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []branch.Saved{{Repo: "/repo", Name: deletable[0].Name, Commit: "c-" + deletable[0].Name}}
+	if r.Kind != history.KindDeleteBranch || !reflect.DeepEqual(r.Branches, want) {
+		t.Errorf("got %+v, want %+v", r, want)
+	}
+}
+
+// 1件も削除しなければ、履歴を書かないこと
+func TestDelete_何も削除しなければ履歴を書かない(t *testing.T) {
+	cli := setupCLI(t)
+	cli.branches = deletable
+
+	if err := cli.run("delete", "--branch"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(cli.historyDir, "history.json")); !os.IsNotExist(err) {
+		t.Errorf("履歴が書かれた: %v", err)
 	}
 }
