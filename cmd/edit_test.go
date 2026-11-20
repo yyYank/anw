@@ -70,16 +70,19 @@ func TestEdit_EDITORがなければエラー(t *testing.T) {
 	}
 }
 
-// edit で対象のフラグがなければエラーにすること
-func TestEdit_対象がなければエラー(t *testing.T) {
+// edit で対象のフラグがなければ、対象が env だけなので選ばせずに env の処理に進むこと
+func TestEdit_対象がなければenvに進む(t *testing.T) {
 	cli := setupCLI(t)
 	cli.envFiles = []string{".env"}
 
-	if err := cli.run("edit"); err == nil {
-		t.Error("エラーにならなかった")
+	if err := cli.run("edit"); err != nil {
+		t.Fatal(err)
 	}
 
-	if len(cli.edited) != 0 {
-		t.Errorf("開かれた: %v", cli.edited)
+	if cli.targetItems != nil {
+		t.Error("対象を選ぶ画面が表示された")
+	}
+	if want := []string{".env"}; !reflect.DeepEqual(cli.edited, want) {
+		t.Errorf("edited %v, want %v", cli.edited, want)
 	}
 }

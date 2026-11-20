@@ -102,12 +102,16 @@ func TestView_branchは一覧を出力する(t *testing.T) {
 	}
 }
 
-// view で対象のフラグがなければエラーにすること
-func TestView_対象がなければエラー(t *testing.T) {
+// view で対象のフラグがなければ、対象を選ぶ画面を出すこと
+func TestView_対象がなければ選ばせる(t *testing.T) {
 	cli := setupCLI(t)
 
-	if err := cli.run("view"); err == nil {
-		t.Error("エラーにならなかった")
+	if err := cli.run("view"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.targetItems == nil {
+		t.Error("対象を選ぶ画面が表示されていない")
 	}
 }
 

@@ -86,17 +86,23 @@ func TestDelete_候補がなければエラー(t *testing.T) {
 	}
 }
 
-// delete で対象のフラグがなければエラーにし、何も削除しないこと
-func TestDelete_対象がなければエラー(t *testing.T) {
+// delete で対象のフラグがなければ、対象が branch だけなので選ばせずにブランチの選択に進むこと
+func TestDelete_対象がなければbranchに進む(t *testing.T) {
 	cli := setupCLI(t)
 	cli.branches = deletable
 	cli.branchPick = []int{0}
 
-	if err := cli.run("delete", "--force"); err == nil {
-		t.Error("エラーにならなかった")
+	if err := cli.run("delete", "--force"); err != nil {
+		t.Fatal(err)
 	}
 
-	if len(cli.deleted) != 0 {
-		t.Errorf("削除された: %v", cli.deleted)
+	if cli.targetItems != nil {
+		t.Error("対象を選ぶ画面が表示された")
+	}
+	if !cli.branchShown {
+		t.Error("ブランチを選ぶ画面に進んでいない")
+	}
+	if want := []string{"feature/a!"}; !reflect.DeepEqual(cli.deleted, want) {
+		t.Errorf("deleted %v, want %v", cli.deleted, want)
 	}
 }

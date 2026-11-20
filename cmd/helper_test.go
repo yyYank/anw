@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/yyYank/anw/internal/branch"
+	"github.com/yyYank/anw/internal/choose"
 	"github.com/yyYank/anw/internal/port"
 )
 
@@ -42,6 +43,13 @@ type testCLI struct {
 	deleted []string
 	// deleteFail は削除に失敗させるブランチ
 	deleteFail map[string]bool
+
+	// targetPick は対象を選ぶ画面で選ぶ対象の名前。空なら選ばずにやめる
+	targetPick string
+	// targetItems は対象を選ぶ画面に出た一覧。表示されなければ nil
+	targetItems []choose.Item
+	// targetTitle は対象を選ぶ画面の見出し
+	targetTitle string
 
 	// out はコマンドの標準出力
 	out bytes.Buffer
@@ -119,6 +127,14 @@ func setupCLI(t *testing.T) *testCLI {
 		return nil
 	}
 	t.Cleanup(func() { listBranches, selectBranches, deleteBranch = origBranches, origSelectBranches, origDelete })
+
+	// 対象を選ぶ画面を出さないよう、偽物に差し替える
+	origChoose := chooseTarget
+	chooseTarget = func(title string, items []choose.Item) (string, bool, error) {
+		c.targetTitle, c.targetItems = title, items
+		return c.targetPick, c.targetPick != "", nil
+	}
+	t.Cleanup(func() { chooseTarget = origChoose })
 	return c
 }
 

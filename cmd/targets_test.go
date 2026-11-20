@@ -3,6 +3,8 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"github.com/yyYank/anw/internal/port"
 )
 
 // 動詞ごとの対象の一覧から、その動詞のフラグとヘルプが作られていること
@@ -36,5 +38,107 @@ func TestVerbs_対象を取る動詞がそろっている(t *testing.T) {
 		if !got[name] {
 			t.Errorf("%s が一覧にない", name)
 		}
+	}
+}
+
+// 対象を省略すると、その動詞で使える対象だけを見出し付きで一覧すること
+func TestVerbs_対象を省略すると一覧から選ばせる(t *testing.T) {
+	cli := setupCLI(t)
+
+	if err := cli.run("view"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.targetTitle != "view: 何を見ますか？" {
+		t.Errorf("見出しが %q", cli.targetTitle)
+	}
+	var names []string
+	for _, it := range cli.targetItems {
+		if it.Desc == "" {
+			t.Errorf("%s に説明がない", it.Name)
+		}
+		names = append(names, it.Name)
+	}
+	if got, want := strings.Join(names, ","), "env,port,branch"; got != want {
+		t.Errorf("一覧が %s、want %s", got, want)
+	}
+}
+
+// 一覧で選んだ対象は、フラグを付けたときと同じ処理に進むこと
+func TestVerbs_選んだ対象の処理に進む(t *testing.T) {
+	cli := setupCLI(t)
+	cli.envFiles = []string{".env"}
+	cli.targetPick = "env"
+
+	if err := cli.run("view"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.envPicker == nil || *cli.envPicker {
+		t.Error("view --env と同じ閲覧だけの一覧が表示されていない")
+	}
+}
+
+// 一覧で選ばずにやめたら、何もせずに終わること
+func TestVerbs_選ばずにやめたら何もしない(t *testing.T) {
+	cli := setupCLI(t)
+	cli.envFiles = []string{".env"}
+
+	if err := cli.run("view"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.envPicker != nil {
+		t.Error("env の一覧が表示された")
+	}
+}
+
+// フラグを付けたら、対象を選ぶ画面を挟まないこと
+func TestVerbs_フラグがあれば選ばせない(t *testing.T) {
+	cli := setupCLI(t)
+	cli.envFiles = []string{".env"}
+
+	if err := cli.run("view", "--env"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.targetItems != nil {
+		t.Error("対象を選ぶ画面が表示された")
+	}
+}
+
+// 対象が1つしかない動詞は、選ぶ画面を挟まずにその対象へ進むこと
+func TestVerbs_対象が1つなら選ばせない(t *testing.T) {
+	cli := setupCLI(t)
+	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
+	cli.pick = -1
+
+	if err := cli.run("kill"); err != nil {
+		t.Fatal(err)
+	}
+
+	if cli.targetItems != nil {
+		t.Error("対象を選ぶ画面が表示された")
+	}
+	if !cli.shown {
+		t.Error("ポートを選ぶ画面に進んでいない")
+	}
+	if len(cli.killed) != 0 {
+		t.Errorf("kill された: %v", cli.killed)
+	}
+}
+
+// 対象を省略して値だけ渡したら、エラーにして何もしないこと
+func TestVerbs_対象なしの値はエラー(t *testing.T) {
+	cli := setupCLI(t)
+	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
+	cli.targetPick = "port"
+
+	if err := cli.run("view", "3000"); err == nil {
+		t.Error("エラーにならなかった")
+	}
+
+	if cli.targetItems != nil {
+		t.Error("対象を選ぶ画面が表示された")
 	}
 }
