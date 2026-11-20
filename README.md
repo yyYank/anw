@@ -22,10 +22,10 @@ anw <動詞> --<対象>
 
 | 動詞 | 内容 | 対象 |
 | --- | --- | --- |
-| `view` | 見る | `--env` `--port` `--branch` `--ai` `--dotfiles` |
+| `view` | 見る | `--env` `--port` `--branch` `--worktree` `--stash` `--ai` `--dotfiles` |
 | `edit` | 編集する | `--env` `--dotfiles` |
 | `kill` | プロセスを止める | `--port` |
-| `delete` | 削除する | `--branch` |
+| `delete` | 削除する | `--branch` `--worktree` `--stash` |
 | `tidy` | ファイルを振り分ける | |
 | `undo` | 直前の操作を元に戻す | |
 
@@ -36,7 +36,7 @@ anw <動詞> --<対象>
 対象を省略して動詞だけ打つと、その動詞で使える対象から選べます。選んだあとは、フラグを付けた場合と同じ動作になります。
 
 ```sh
-anw view            # env / port / branch / ai / dotfiles から選ぶ
+anw view            # env / port / branch / worktree / stash / ai / dotfiles から選ぶ
 anw view --env      # 選択を挟まず直行
 ```
 
@@ -46,6 +46,8 @@ view: 何を見ますか？
 > env      env ファイルの一覧と内容のプレビュー
   port     LISTEN 中のポートの一覧
   branch   削除できるブランチの一覧
+  worktree 消してよい worktree の一覧
+  stash    stash の一覧
   ai       コーディングエージェントのセッション
   dotfiles ホームの設定ファイルの一覧と内容のプレビュー
 ```
@@ -56,7 +58,7 @@ view: 何を見ますか？
 | `Enter` | 決定 |
 | `q` / `Esc` | 終了 |
 
-- 対象が1つしかない動詞（`kill`、`delete`）は、選択を挟まずにその対象へ進みます
+- 対象が1つしかない動詞（`kill`）は、選択を挟まずにその対象へ進みます
 - `anw` だけを打つと、動詞と対象の対応表を出します
 - その動詞で使えない対象を指定すると、使える対象を表示します（例: `anw kill --env` → `kill で使えるのは --port です`）
 
@@ -71,6 +73,8 @@ anw view --env          # env ファイルの一覧と内容のプレビュー
 anw view --port         # LISTEN 中のポートの一覧
 anw view --port 3000    # 3000番を使っているプロセス
 anw view --branch       # 削除できるブランチの一覧
+anw view --worktree     # 消してよい worktree の一覧
+anw view --stash        # stash の一覧
 anw view --ai           # コーディングエージェントのセッションを全プロジェクト横断で一覧
 anw view --ai .         # 今いるリポジトリ（別の worktree を含む）のセッションだけ
 anw view --dotfiles     # ホームの設定ファイルの一覧と内容のプレビュー
@@ -100,6 +104,16 @@ anw view --dotfiles     # ホームの設定ファイルの一覧と内容のプ
 - デフォルトブランチにマージ済みのローカルブランチと、リモートで削除済みのローカルブランチを表示します
 - 現在のブランチは含みません
 - デフォルトブランチは `origin/HEAD` から決めます。fetch はしないので、必要なら先に `git fetch --prune` してください
+
+**`--worktree`**
+
+- ディレクトリがもう消えた worktree と、ブランチがマージ済み・リモート削除済みの worktree を、理由付きで表示します
+- メインの worktree と、今いる worktree は含みません
+
+**`--stash`**
+
+- stash をすべて、元のブランチと何日前かを付けて表示します
+- 元のブランチがもうないものには `(ブランチなし)` と付けます
 
 **`--ai`**
 
@@ -151,13 +165,30 @@ anw kill --port 3000    # 3000番を使っているプロセスを kill
 ```sh
 anw delete --branch           # 一覧から選んで削除
 anw delete --force --branch   # マージされていなくても強制削除
+anw delete --worktree         # 一覧から選んで削除
+anw delete --force --worktree # 変更が残っていても強制削除
+anw delete --stash            # 一覧から選んで削除
 ```
 
-- 対象は `anw view --branch` と同じです
-- Space で複数選べます。何も選ばずに Enter を押すと、カーソル位置のブランチを削除します
+- 対象は `anw view` の同じ対象と同じです
+- Space で複数選べます。何も選ばずに Enter を押すと、カーソル位置のものを削除します
+
+**`--branch`**
+
 - 通常は `git branch --delete` で削除するため、マージされていないブランチ（squash マージしたものなど）は削除されません
 - `--force` を付けると `git branch --delete --force` で強制削除します
 - 削除したブランチは `anw undo` で作り直せます
+
+**`--worktree`**
+
+- `git worktree remove` で削除します。変更が残っている worktree は削除されません
+- `--force` を付けると、変更が残っていても削除します
+- 削除した worktree は `anw undo` で戻せません
+
+**`--stash`**
+
+- `git stash drop` で削除します
+- 削除した stash は `anw undo` で作り直せます。作り直した stash は、元の前後関係のまま一番上に並びます
 
 ### anw tidy
 
@@ -203,10 +234,11 @@ anw undo
 | --- | --- |
 | `anw tidy` | 移動したファイルを元の場所に戻す |
 | `anw delete --branch` | 削除したブランチを、同じ名前・同じコミットで作り直す。上流ブランチがまだあれば設定し直す |
+| `anw delete --stash` | 削除した stash を、同じコミット・同じメッセージで作り直す |
 
 - 戻すのは直前の1回分です
 - 先にすべて戻せるかを確かめ、1件でも戻せなければ何もしません（元の場所に同名のファイルがある、同じ名前のブランチがある、コミットがもうない、など）
-- `anw kill` で止めたプロセスと、`anw edit` での編集は戻せません
+- `anw kill` で止めたプロセス、`anw edit` での編集、`anw delete --worktree` で削除した worktree は戻せません
 - 操作の履歴は、既定では `~/.anw/` に保存されます（[設定](#設定)で変更できます）
 
 ## 設定
