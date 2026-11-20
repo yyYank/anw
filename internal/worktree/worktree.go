@@ -1,11 +1,57 @@
 package worktree
 
 import (
+	"bytes"
+	"fmt"
+	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/yyYank/anw/internal/branch"
 )
+
+// List はカレントディレクトリのリポジトリで、消してよい worktree を返す。
+// ブランチがマージ済みかどうかは branch.List と同じく origin/HEAD から決める。
+func List() ([]Worktree, error) {
+	current, err := git("rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, err
+	}
+	porcelain, err := git("worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	deletable, err := branch.List()
+	if err != nil {
+		return nil, err
+	}
+	return Collect(porcelain, strings.TrimSpace(current), deletable), nil
+}
+
+// Remove は path の worktree を削除する。変更が残っていれば消さない。force なら変更があっても消す。
+func Remove(path string, force bool) error {
+	args := []string{"worktree", "remove", path}
+	if force {
+		args = []string{"worktree", "remove", "--force", path}
+	}
+	_, err := git(args...)
+	return err
+}
+
+// git は git コマンドを実行して標準出力を返す。失敗したら標準エラーの内容をエラーにする。
+func git(args ...string) (string, error) {
+	var stderr bytes.Buffer
+	c := exec.Command("git", args...)
+	c.Stderr = &stderr
+	out, err := c.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", fmt.Errorf("%s", msg)
+		}
+		return "", err
+	}
+	return string(out), nil
+}
 
 // Worktree は消してよい worktree と、その理由を表す。
 type Worktree struct {
