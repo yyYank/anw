@@ -195,3 +195,16 @@ func TestPicker_入力中はモードを表示する(t *testing.T) {
 		t.Errorf("モードと入力が表示されていない:\n%s", view)
 	}
 }
+
+// WithTitle で一覧の見出しを変えられること。指定しなければ "env ファイル" のまま
+func TestPicker_見出しを変えられる(t *testing.T) {
+	if view := NewPicker(files, fakeLoad, false).View(); !strings.Contains(view, "env ファイル") {
+		t.Errorf("既定の見出しがない:\n%s", view)
+	}
+
+	view := NewPicker(files, fakeLoad, false).WithTitle("dotfiles").View()
+
+	if !strings.Contains(view, "dotfiles") || strings.Contains(view, "env ファイル") {
+		t.Errorf("見出しが変わっていない:\n%s", view)
+	}
+}

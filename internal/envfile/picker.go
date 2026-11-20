@@ -29,6 +29,7 @@ var (
 // Picker は env ファイルの一覧と、カーソル位置のファイルの内容を表示する TUI。
 // / でパスを、Ctrl+G で中身を検索して一覧を絞り込める。
 type Picker struct {
+	title      string
 	items      []string
 	contents   []string
 	selectable bool
@@ -51,8 +52,14 @@ func NewPicker(items []string, load func(path string) string, selectable bool) P
 	for i, item := range items {
 		contents[i] = load(item)
 	}
-	m := Picker{items: items, contents: contents, selectable: selectable}
+	m := Picker{title: "env ファイル", items: items, contents: contents, selectable: selectable}
 	m.refilter()
+	return m
+}
+
+// WithTitle は一覧の見出しを title にした Picker を返す。
+func (m Picker) WithTitle(title string) Picker {
+	m.title = title
 	return m
 }
 
@@ -182,7 +189,7 @@ func (m Picker) View() string {
 		rows = max(m.height-4, 1)
 	}
 
-	list := []string{titleStyle.Render("env ファイル")}
+	list := []string{titleStyle.Render(m.title)}
 	start, end := window(len(m.visible), m.cursor, rows)
 	for i := start; i < end; i++ {
 		if i == m.cursor {
