@@ -59,7 +59,7 @@ func TestVerbs_対象を省略すると一覧から選ばせる(t *testing.T) {
 		}
 		names = append(names, it.Name)
 	}
-	if got, want := strings.Join(names, ","), "env,port,branch,ai,dotfiles"; got != want {
+	if got, want := strings.Join(names, ","), "env,port,branch,worktree,stash,ai,dotfiles"; got != want {
 		t.Errorf("一覧が %s、want %s", got, want)
 	}
 }
@@ -167,7 +167,7 @@ func TestVerbs_合わない対象は使える対象を並べて返す(t *testing
 		t.Errorf("err = %v", err)
 	}
 	err = cli.run("view", "--foo")
-	if err == nil || err.Error() != "view で使えるのは --env, --port, --branch, --ai, --dotfiles です" {
+	if err == nil || err.Error() != "view で使えるのは --env, --port, --branch, --worktree, --stash, --ai, --dotfiles です" {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -182,10 +182,10 @@ func TestRoot_対応表を出す(t *testing.T) {
 
 	out := cli.out.String()
 	for _, want := range [][]string{
-		{"view", "--env", "--port", "--branch", "--ai", "--dotfiles"},
+		{"view", "--env", "--port", "--branch", "--worktree", "--stash", "--ai", "--dotfiles"},
 		{"edit", "--env", "--dotfiles"},
 		{"kill", "--port"},
-		{"delete", "--branch"},
+		{"delete", "--branch", "--worktree", "--stash"},
 		{"tidy"},
 		{"undo"},
 	} {

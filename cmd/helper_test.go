@@ -13,7 +13,10 @@ import (
 	"github.com/yyYank/anw/internal/aisession"
 	"github.com/yyYank/anw/internal/branch"
 	"github.com/yyYank/anw/internal/choose"
+	"github.com/yyYank/anw/internal/multiselect"
 	"github.com/yyYank/anw/internal/port"
+	"github.com/yyYank/anw/internal/stash"
+	"github.com/yyYank/anw/internal/worktree"
 )
 
 // testCLI はテスト用の toml を読ませ、テスト用ディレクトリでコマンドを実行する
@@ -69,6 +72,18 @@ type testCLI struct {
 	sessionPick int
 	// sessionPicker はセッションの一覧に渡された引数。表示されなければ nil
 	sessionPicker *sessionPickerCall
+
+	worktrees []worktree.Worktree
+	// removed は削除した worktree。force で消したものには "!" を付ける
+	removed    []string
+	removeFail map[string]bool
+	stashes    []stash.Stash
+	// dropped は消した stash のメッセージ
+	dropped []string
+	// multiPick は複数選択の画面で選ぶ行。nil なら選ばずにやめる
+	multiPick []int
+	// multiTitle は複数選択の画面の見出し。表示されなければ空
+	multiTitle string
 
 	// out はコマンドの標準出力
 	out bytes.Buffer
@@ -186,6 +201,36 @@ func setupCLI(t *testing.T) *testCLI {
 		return c.sessionPick, true, nil
 	}
 	t.Cleanup(func() { collectSessions, repoOf, showSessionPicker = origCollect, origRepo, origSessionPicker })
+
+	// 本物の worktree や stash を調べたり消したりしないよう、偽物に差し替える
+	origWT, origRemove, origStashes, origDrop, origMulti := listWorktrees, removeWorktree, listStashes, dropStashes, selectItems
+	listWorktrees = func() ([]worktree.Worktree, error) { return c.worktrees, nil }
+	removeWorktree = func(path string, force bool) error {
+		if c.removeFail[path] {
+			return fmt.Errorf("%s には変更が残っています", path)
+		}
+		if force {
+			path += "!"
+		}
+		c.removed = append(c.removed, path)
+		return nil
+	}
+	listStashes = func() ([]stash.Stash, error) { return c.stashes, nil }
+	dropStashes = func(ss []stash.Stash) ([]stash.Saved, error) {
+		var saved []stash.Saved
+		for _, s := range ss {
+			c.dropped = append(c.dropped, s.Message)
+			saved = append(saved, stash.Saved{Repo: "/repo", Commit: s.Commit, Message: s.Message})
+		}
+		return saved, nil
+	}
+	selectItems = func(title string, items []multiselect.Item) ([]int, error) {
+		c.multiTitle = title
+		return c.multiPick, nil
+	}
+	t.Cleanup(func() {
+		listWorktrees, removeWorktree, listStashes, dropStashes, selectItems = origWT, origRemove, origStashes, origDrop, origMulti
+	})
 
 	// 対象を選ぶ画面を出さないよう、偽物に差し替える
 	origChoose := chooseTarget
