@@ -18,11 +18,14 @@ var undoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		moves, err := history.Undo(path)
-		for _, m := range moves {
+		r, err := history.Undo(path)
+		for _, m := range r.Moves {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s -> %s\n", m.To, m.From)
 		}
-		if errors.Is(err, os.ErrNotExist) && len(moves) == 0 {
+		for _, b := range r.Branches {
+			fmt.Fprintf(cmd.OutOrStdout(), "restored %s (%s)\n", b.Name, b.Commit)
+		}
+		if errors.Is(err, os.ErrNotExist) && len(r.Moves) == 0 {
 			return errors.New("元に戻せる操作がありません")
 		}
 		return err
