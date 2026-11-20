@@ -2,23 +2,14 @@ package cmd
 
 import "github.com/spf13/cobra"
 
-var (
-	deleteBranchFlag bool
-	deleteForce      bool
-)
-
-var deleteCmd = &cobra.Command{
-	Use:   "delete --branch [--force]",
-	Short: "対象を選んで削除する",
-	Args:  cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return deleteBranches(cmd.OutOrStdout(), cmd.ErrOrStderr(), deleteForce)
-	},
-}
+var deleteForce bool
 
 func init() {
-	deleteCmd.Flags().BoolVar(&deleteBranchFlag, "branch", false, "マージ済み・リモート削除済みのローカルブランチ")
-	deleteCmd.Flags().BoolVar(&deleteForce, "force", false, "マージされていなくても強制削除する")
-	deleteCmd.MarkFlagsOneRequired("branch")
-	rootCmd.AddCommand(deleteCmd)
+	v := newVerb("delete", "対象を選んで削除する", "[--force]", []target{
+		{name: "branch", desc: "マージ済み・リモート削除済みのローカルブランチ",
+			run: func(cmd *cobra.Command, args []string) error {
+				return deleteBranches(cmd.OutOrStdout(), cmd.ErrOrStderr(), deleteForce)
+			}},
+	})
+	v.cmd.Flags().BoolVar(&deleteForce, "force", false, "マージされていなくても強制削除する")
 }
