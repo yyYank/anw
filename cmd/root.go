@@ -21,16 +21,19 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// verbOrder は対応表に並べる動詞の順。tidy と undo は対象を取らない
+var verbOrder = []string{"view", "edit", "kill", "delete", "tidy", "undo"}
+
 // printVerbTable は動詞と、その動詞で使える対象の対応表を出力する。
 func printVerbTable(w io.Writer) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "動詞\t対象")
+	targets := map[string]string{}
 	for _, v := range verbs {
-		fmt.Fprintf(tw, "%s\t%s\n", v.cmd.Name(), v.targetFlags(" "))
+		targets[v.cmd.Name()] = v.targetFlags(" ")
 	}
-	// 対象を取らない動詞
-	for _, name := range []string{"tidy", "undo"} {
-		fmt.Fprintf(tw, "%s\t\n", name)
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "VERB\tTARGETS")
+	for _, name := range verbOrder {
+		fmt.Fprintf(tw, "%s\t%s\n", name, targets[name])
 	}
 	if err := tw.Flush(); err != nil {
 		return err

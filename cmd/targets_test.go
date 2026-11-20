@@ -201,3 +201,22 @@ func TestRoot_対応表を出す(t *testing.T) {
 		}
 	}
 }
+
+// 対応表は仕様の表と同じ順に並び、見出しは他の表と同じ英字であること
+func TestRoot_対応表の並びと見出し(t *testing.T) {
+	cli := setupCLI(t)
+
+	if err := cli.run(); err != nil {
+		t.Fatal(err)
+	}
+
+	var firsts []string
+	for _, line := range strings.Split(cli.out.String(), "\n") {
+		if fields := strings.Fields(line); len(fields) > 0 && !strings.HasPrefix(line, "詳しくは") {
+			firsts = append(firsts, fields[0])
+		}
+	}
+	if got, want := strings.Join(firsts, ","), "VERB,view,edit,kill,delete,tidy,undo"; got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
