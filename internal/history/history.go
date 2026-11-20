@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/yyYank/anw/internal/branch"
+	"github.com/yyYank/anw/internal/stash"
 	"github.com/yyYank/anw/internal/tidy"
 )
 
@@ -14,6 +15,7 @@ import (
 const (
 	KindTidy         = "tidy"
 	KindDeleteBranch = "delete-branch"
+	KindDropStash    = "drop-stash"
 )
 
 // Record は直前の操作を元に戻すための記録。Kind で操作の種類を見分ける。
@@ -21,6 +23,7 @@ type Record struct {
 	Kind     string         `json:"kind"`
 	Moves    []tidy.Move    `json:"moves,omitempty"`
 	Branches []branch.Saved `json:"branches,omitempty"`
+	Stashes  []stash.Saved  `json:"stashes,omitempty"`
 }
 
 // Save は直前の操作として tidy の移動 moves を path に保存する。
@@ -31,6 +34,11 @@ func Save(path string, moves []tidy.Move) error {
 // SaveBranches は直前の操作として、削除したブランチの記録 saved を path に保存する。
 func SaveBranches(path string, saved []branch.Saved) error {
 	return saveRecord(path, Record{Kind: KindDeleteBranch, Branches: saved})
+}
+
+// SaveStashes は直前の操作として、消した stash の記録 saved を path に保存する。
+func SaveStashes(path string, saved []stash.Saved) error {
+	return saveRecord(path, Record{Kind: KindDropStash, Stashes: saved})
 }
 
 func saveRecord(path string, r Record) error {
@@ -77,6 +85,15 @@ func Undo(path string) (Record, error) {
 		}
 	case KindDeleteBranch:
 		if err := undoBranches(r.Branches); err != nil {
+			return Record{}, err
+		}
+	case KindDropStash:
+		for _, s := range r.Stashes {
+			if err := stash.CheckRestore(s); err != nil {
+				return Record{}, err
+			}
+		}
+		if err := stash.Restore(r.Stashes); err != nil {
 			return Record{}, err
 		}
 	default:
