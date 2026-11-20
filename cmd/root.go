@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/yyYank/anw/internal/config"
@@ -12,6 +15,28 @@ var configPath string
 var rootCmd = &cobra.Command{
 	Use:   "anw",
 	Short: "anyway、なんとかする。日常の細かい面倒をとりあえず片づけるコマンド集",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return printVerbTable(cmd.OutOrStdout())
+	},
+}
+
+// printVerbTable は動詞と、その動詞で使える対象の対応表を出力する。
+func printVerbTable(w io.Writer) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "動詞\t対象")
+	for _, v := range verbs {
+		fmt.Fprintf(tw, "%s\t%s\n", v.cmd.Name(), v.targetFlags(" "))
+	}
+	// 対象を取らない動詞
+	for _, name := range []string{"tidy", "undo"} {
+		fmt.Fprintf(tw, "%s\t\n", name)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(w, "\n詳しくは anw <動詞> --help")
+	return err
 }
 
 // Execute はルートコマンドを実行する。

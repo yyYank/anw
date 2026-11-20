@@ -142,3 +142,62 @@ func TestVerbs_対象なしの値はエラー(t *testing.T) {
 		t.Error("対象を選ぶ画面が表示された")
 	}
 }
+
+// その動詞で使えない対象を指定したら、使える対象を返すこと
+func TestVerbs_合わない対象は使える対象を返す(t *testing.T) {
+	cli := setupCLI(t)
+
+	err := cli.run("kill", "--env")
+
+	if err == nil || err.Error() != "kill で使えるのは --port です" {
+		t.Errorf("err = %v", err)
+	}
+	if len(cli.killed) != 0 {
+		t.Errorf("kill された: %v", cli.killed)
+	}
+}
+
+// 対象が複数ある動詞では、使える対象を並べて返すこと
+func TestVerbs_合わない対象は使える対象を並べて返す(t *testing.T) {
+	cli := setupCLI(t)
+
+	err := cli.run("edit", "--port")
+
+	if err == nil || err.Error() != "edit で使えるのは --env です" {
+		t.Errorf("err = %v", err)
+	}
+	err = cli.run("view", "--foo")
+	if err == nil || err.Error() != "view で使えるのは --env, --port, --branch です" {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// anw だけを打つと、動詞と対象の対応表を出すこと
+func TestRoot_対応表を出す(t *testing.T) {
+	cli := setupCLI(t)
+
+	if err := cli.run(); err != nil {
+		t.Fatal(err)
+	}
+
+	out := cli.out.String()
+	for _, want := range [][]string{
+		{"view", "--env", "--port", "--branch"},
+		{"edit", "--env"},
+		{"kill", "--port"},
+		{"delete", "--branch"},
+		{"tidy"},
+		{"undo"},
+	} {
+		found := false
+		for _, line := range strings.Split(out, "\n") {
+			if fields := strings.Fields(line); len(fields) > 0 && fields[0] == want[0] {
+				found = strings.Join(fields, " ") == strings.Join(want, " ")
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%v の行がない:\n%s", want, out)
+		}
+	}
+}

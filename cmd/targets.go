@@ -86,6 +86,12 @@ func newVerb(name, short, question, useSuffix string, targets []target) *verb {
 	if len(names) > 1 {
 		v.cmd.MarkFlagsMutuallyExclusive(names...)
 	}
+	v.cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		if strings.HasPrefix(err.Error(), "unknown flag") {
+			return fmt.Errorf("%s で使えるのは %s です", name, v.targetFlags(", "))
+		}
+		return err
+	})
 
 	verbs = append(verbs, v)
 	rootCmd.AddCommand(v.cmd)
@@ -121,6 +127,15 @@ func (v *verb) ask() (target, bool, error) {
 		}
 	}
 	return target{}, false, fmt.Errorf("不明な対象です: %s", name)
+}
+
+// targetFlags は使える対象のフラグを "--env" のように sep でつないで並べる。
+func (v *verb) targetFlags(sep string) string {
+	var names []string
+	for _, t := range v.targets {
+		names = append(names, "--"+t.name)
+	}
+	return strings.Join(names, sep)
 }
 
 // argTargets は値を取る対象のフラグを "--port" のように並べる。
