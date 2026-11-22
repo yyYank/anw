@@ -47,6 +47,6 @@ var tidyCmd = &cobra.Command{
 }
 
 func init() {
-	tidyCmd.Flags().StringVar(&tidyBy, "by", "date", "振り分けの基準 (date)")
+	tidyCmd.Flags().StringVar(&tidyBy, "by", "date", "振り分けの基準 (date, month)")
 	rootCmd.AddCommand(tidyCmd)
 }

@@ -195,8 +195,9 @@ anw delete --stash            # 一覧から選んで削除
 カレントディレクトリ直下のファイルを、更新日時の `yyyy-mm-dd/` ディレクトリに振り分けます。
 
 ```sh
-anw tidy
-anw tidy --by date
+anw tidy             # --by date と同じ
+anw tidy --by date   # yyyy-mm-dd/ に振り分ける
+anw tidy --by month  # yyyy-mm/yyyy-mm-dd/ に振り分ける
 ```
 
 ```
@@ -221,6 +222,31 @@ anw tidy --by date
 - 隠しファイルは対象外です
 - 移動先に同名のファイルがある場合は、`report (1).pdf` のように連番を付けます
 - 実行結果は `anw undo` で元に戻せます
+
+**`--by month`**
+
+ファイルに加えて、`--by date` で作った `yyyy-mm-dd/` ディレクトリも `yyyy-mm/` の下にまとめます。
+
+```
+.
+├── 2026-10-27/
+│   └── memo.md
+└── report.pdf         (2026-10-29 更新)
+```
+
+↓
+
+```
+.
+└── 2026-10/
+    ├── 2026-10-27/
+    │   └── memo.md
+    └── 2026-10-29/
+        └── report.pdf
+```
+
+- 名前が `yyyy-mm-dd` でないディレクトリは移動しません
+- 移動先に同じ日付のディレクトリが既にあれば、中身を1件ずつ移して統合します。同名のファイルには連番を付けます
 
 ### anw undo
 

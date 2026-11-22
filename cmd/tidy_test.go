@@ -50,3 +50,32 @@ func TestTidy_履歴はtomlのhistory_dirに保存される(t *testing.T) {
 		t.Errorf("履歴が保存されていない: %v", err)
 	}
 }
+
+// anw tidy --by month の結果を anw undo で元に戻せること
+func TestTidy_monthをundoで戻す(t *testing.T) {
+	cli := setupCLI(t)
+	path := cli.createFile("memo.md", oct27)
+	if err := os.Mkdir(filepath.Join(cli.workDir, "2026-10-28"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cli.run("tidy", "--by", "month"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(cli.workDir, "2026-10", "2026-10-27", "memo.md")); err != nil {
+		t.Fatalf("振り分けられていない: %v", err)
+	}
+	if err := cli.run("undo"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("元に戻っていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cli.workDir, "2026-10-28")); err != nil {
+		t.Errorf("日付ディレクトリが元に戻っていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cli.workDir, "2026-10")); !os.IsNotExist(err) {
+		t.Errorf("空の月ディレクトリが残っている: %v", err)
+	}
+}
