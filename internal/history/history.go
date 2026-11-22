@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/yyYank/anw/internal/branch"
 	"github.com/yyYank/anw/internal/stash"
@@ -114,11 +115,14 @@ func undoMoves(moves []tidy.Move) ([]tidy.Move, error) {
 	var undone []tidy.Move
 	for i := len(moves) - 1; i >= 0; i-- {
 		m := moves[i]
+		// 移動元のディレクトリが中身ごと移された後でも戻せるよう、作り直す
+		if err := os.MkdirAll(filepath.Dir(m.From), 0o755); err != nil {
+			return undone, err
+		}
 		if err := os.Rename(m.To, m.From); err != nil {
 			return undone, err
 		}
-		// 空でなければ失敗するので、エラーは無視してよい
-		_ = os.Remove(filepath.Dir(m.To))
+		removeEmptyDirs(filepath.Dir(m.To), m.From)
 		undone = append(undone, m)
 	}
 	return undone, nil
@@ -137,4 +141,16 @@ func undoBranches(saved []branch.Saved) error {
 		}
 	}
 	return nil
+}
+
+// removeEmptyDirs は dir から上の階層へ、空のディレクトリを消していく。
+// from を含むディレクトリまで来たら止める。
+func removeEmptyDirs(dir, from string) {
+	for !strings.HasPrefix(from, dir+string(filepath.Separator)) {
+		// 空でなければ失敗するので、そこで止めてよい
+		if err := os.Remove(dir); err != nil {
+			return
+		}
+		dir = filepath.Dir(dir)
+	}
 }

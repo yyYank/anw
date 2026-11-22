@@ -160,3 +160,52 @@ func TestUndo_2回目はエラー(t *testing.T) {
 		t.Error("2回目の undo がエラーにならなかった")
 	}
 }
+
+// 入れ子の日付ディレクトリから戻したとき、空になったディレクトリを上の階層まで消すこと
+func TestUndo_空になった入れ子のディレクトリを消す(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".anw", "history.json")
+	from := filepath.Join(dir, "memo.md")
+	to := filepath.Join(dir, "2026-10", "2026-10-27", "memo.md")
+	writeFile(t, to)
+	if err := Save(path, []tidy.Move{{From: from, To: to}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Undo(path); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(from); err != nil {
+		t.Errorf("元の場所に戻っていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "2026-10")); !os.IsNotExist(err) {
+		t.Errorf("空の月ディレクトリが残っている: %v", err)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Errorf("元の場所のディレクトリまで消えた: %v", err)
+	}
+}
+
+// 移動元のディレクトリが無くなっていても、作り直して元の場所に戻すこと
+func TestUndo_移動元のディレクトリを作り直す(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".anw", "history.json")
+	from := filepath.Join(dir, "2026-10-27", "memo.md")
+	to := filepath.Join(dir, "2026-10", "2026-10-27", "memo.md")
+	writeFile(t, to)
+	if err := Save(path, []tidy.Move{{From: from, To: to}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Undo(path); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(from); err != nil {
+		t.Errorf("元の場所に戻っていない: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "2026-10")); !os.IsNotExist(err) {
+		t.Errorf("空の月ディレクトリが残っている: %v", err)
+	}
+}
