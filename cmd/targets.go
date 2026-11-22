@@ -70,8 +70,11 @@ func newVerb(name, short, question, useSuffix string, targets []target) *verb {
 					return errors.New("値を渡すときは対象のフラグも指定してください")
 				}
 				var err error
-				if t, ok, err = v.ask(); err != nil || !ok {
+				if t, ok, err = v.ask(); err != nil {
 					return err
+				}
+				if !ok {
+					return errCanceled
 				}
 			}
 			if len(args) > 0 && t.argHint == "" {

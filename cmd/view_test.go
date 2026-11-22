@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -106,8 +107,9 @@ func TestView_branchは一覧を出力する(t *testing.T) {
 func TestView_対象がなければ選ばせる(t *testing.T) {
 	cli := setupCLI(t)
 
-	if err := cli.run("view"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("view"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if cli.targetItems == nil {

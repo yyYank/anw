@@ -54,8 +54,11 @@ func editDotfiles() error {
 	file := files[0]
 	if len(files) > 1 {
 		var ok bool
-		if file, ok, err = showFilePicker("dotfiles", home, files, true); err != nil || !ok {
+		if file, ok, err = showFilePicker("dotfiles", home, files, true); err != nil {
 			return err
+		}
+		if !ok {
+			return errCanceled
 		}
 	}
 	return openEditor(editor, filepath.Join(home, file))

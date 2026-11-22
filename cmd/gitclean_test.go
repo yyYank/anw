@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -119,8 +120,9 @@ func TestDelete_stashを選ばずにやめたら何もしない(t *testing.T) {
 	cli := setupCLI(t)
 	cli.stashes = sampleStashes
 
-	if err := cli.run("delete", "--stash"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("delete", "--stash"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if len(cli.dropped) != 0 {

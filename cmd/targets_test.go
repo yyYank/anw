@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -45,8 +46,9 @@ func TestVerbs_対象を取る動詞がそろっている(t *testing.T) {
 func TestVerbs_対象を省略すると一覧から選ばせる(t *testing.T) {
 	cli := setupCLI(t)
 
-	if err := cli.run("view"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("view"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if cli.targetTitle != "view: 何を見ますか？" {
@@ -84,8 +86,9 @@ func TestVerbs_選ばずにやめたら何もしない(t *testing.T) {
 	cli := setupCLI(t)
 	cli.envFiles = []string{".env"}
 
-	if err := cli.run("view"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("view"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if cli.envPicker != nil {
@@ -113,8 +116,9 @@ func TestVerbs_対象が1つなら選ばせない(t *testing.T) {
 	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
 	cli.pick = -1
 
-	if err := cli.run("kill"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("kill"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if cli.targetItems != nil {

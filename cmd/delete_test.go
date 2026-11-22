@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -67,8 +68,9 @@ func TestDelete_やめたら削除しない(t *testing.T) {
 	cli := setupCLI(t)
 	cli.branches = deletable
 
-	if err := cli.run("delete", "--branch"); err != nil {
-		t.Fatal(err)
+	// やめたことが呼び出し元に分かるよう、errCanceled を返す
+	if err := cli.run("delete", "--branch"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if len(cli.deleted) != 0 {
@@ -132,8 +134,9 @@ func TestDelete_何も削除しなければ履歴を書かない(t *testing.T) {
 	cli := setupCLI(t)
 	cli.branches = deletable
 
-	if err := cli.run("delete", "--branch"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("delete", "--branch"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(cli.historyDir, "history.json")); !os.IsNotExist(err) {

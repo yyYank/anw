@@ -52,8 +52,11 @@ func killPort(w io.Writer, args []string) error {
 			return errors.New("LISTEN 中のポートはありません")
 		}
 		l, ok, err := selectListener(ls)
-		if err != nil || !ok {
+		if err != nil {
 			return err
+		}
+		if !ok {
+			return errCanceled
 		}
 		targets = []port.Listener{l}
 	}

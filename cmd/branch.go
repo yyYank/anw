@@ -57,6 +57,9 @@ func deleteBranches(out, errOut io.Writer, force bool) error {
 	if err != nil {
 		return err
 	}
+	if len(picked) == 0 {
+		return errCanceled
+	}
 
 	failed := 0
 	var deleted []branch.Saved

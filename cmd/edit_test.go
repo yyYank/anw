@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -46,8 +47,9 @@ func TestEdit_選ばずにやめたら開かない(t *testing.T) {
 	cli.envFiles = []string{".env", ".env.local"}
 	cli.envPick = -1
 
-	if err := cli.run("edit", "--env"); err != nil {
-		t.Fatal(err)
+	// やめたことが呼び出し元に分かるよう、errCanceled を返す
+	if err := cli.run("edit", "--env"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if len(cli.edited) != 0 {

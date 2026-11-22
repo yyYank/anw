@@ -56,8 +56,11 @@ func editEnv() error {
 		return openEditor(editor, files[0])
 	}
 	file, ok, err := showEnvPicker(files, true)
-	if err != nil || !ok {
+	if err != nil {
 		return err
+	}
+	if !ok {
+		return errCanceled
 	}
 	return openEditor(editor, file)
 }

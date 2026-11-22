@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,10 +13,18 @@ import (
 
 var configPath string
 
+// errCanceled は一覧の画面で選ばずにやめたことを表す。
+var errCanceled = errors.New("やめました")
+
+// exitCanceled は選ばずにやめたときの終了コード
+const exitCanceled = 130
+
 var rootCmd = &cobra.Command{
 	Use:   "anw",
 	Short: "anyway、なんとかする。日常の細かい面倒をとりあえず片づけるコマンド集",
-	Args:  cobra.NoArgs,
+	// やめたときはエラーとして表示しないよう、Execute で表示する
+	SilenceErrors: true,
+	Args:          cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return printVerbTable(cmd.OutOrStdout())
 	},
@@ -44,7 +53,12 @@ func printVerbTable(w io.Writer) error {
 
 // Execute はルートコマンドを実行する。
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	if errors.Is(err, errCanceled) {
+		os.Exit(exitCanceled)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }

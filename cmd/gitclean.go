@@ -64,6 +64,9 @@ func deleteWorktrees(out, errOut io.Writer, force bool) error {
 	if err != nil {
 		return err
 	}
+	if len(picked) == 0 {
+		return errCanceled
+	}
 
 	failed := 0
 	for _, i := range picked {
@@ -122,8 +125,11 @@ func deleteStashes(out io.Writer) error {
 		items[i] = multiselect.Item{Name: s.Ref + " " + s.Message, Reason: s.Reason(now)}
 	}
 	picked, err := selectItems("削除する stash を選んでください (↑↓/jk: 移動, Space: 選択, Enter: 削除, q: やめる)", items)
-	if err != nil || len(picked) == 0 {
+	if err != nil {
 		return err
+	}
+	if len(picked) == 0 {
+		return errCanceled
 	}
 
 	targets := make([]stash.Stash, len(picked))

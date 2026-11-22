@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -65,8 +66,9 @@ func TestEdit_dotfilesを選ばずにやめたら開かない(t *testing.T) {
 	cli.dotfiles = []string{".gitconfig", ".zshrc"}
 	cli.filePick = -1
 
-	if err := cli.run("edit", "--dotfiles"); err != nil {
-		t.Fatal(err)
+	// 選ばずにやめたので errCanceled を返す
+	if err := cli.run("edit", "--dotfiles"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if len(cli.edited) != 0 {

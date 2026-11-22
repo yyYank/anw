@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -76,8 +77,9 @@ func TestKill_一覧でやめたらkillしない(t *testing.T) {
 	cli.listeners = []port.Listener{{Port: 3000, PID: 873, Name: "node"}}
 	cli.pick = -1
 
-	if err := cli.run("kill", "--port"); err != nil {
-		t.Fatal(err)
+	// やめたことが呼び出し元に分かるよう、errCanceled を返す
+	if err := cli.run("kill", "--port"); !errors.Is(err, errCanceled) {
+		t.Errorf("err = %v, want errCanceled", err)
 	}
 
 	if len(cli.killed) != 0 {
