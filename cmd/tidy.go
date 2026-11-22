@@ -18,14 +18,15 @@ var tidyCmd = &cobra.Command{
 	Short: "ファイルを更新日時ごとのディレクトリに振り分ける",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if tidyBy != "date" {
-			return fmt.Errorf("--by に指定できるのは date のみです: %q", tidyBy)
+		by, err := tidy.ParseBy(tidyBy)
+		if err != nil {
+			return err
 		}
 		dir, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		moves, err := tidy.Run(dir)
+		moves, err := tidy.Run(dir, by)
 		// 途中で失敗しても、移動済みの分は元に戻せるように保存する
 		if len(moves) > 0 {
 			path, herr := historyPath()

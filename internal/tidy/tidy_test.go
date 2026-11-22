@@ -42,7 +42,7 @@ func TestRun_更新日時のディレクトリに移動する(t *testing.T) {
 	dir := t.TempDir()
 	createFile(t, dir, "memo.md", date(2026, 10, 27))
 
-	if _, err := Run(dir); err != nil {
+	if _, err := Run(dir, ByDate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +62,7 @@ func TestRun_ディレクトリは移動しない(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := Run(dir); err != nil {
+	if _, err := Run(dir, ByDate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,7 +75,7 @@ func TestRun_隠しファイルは対象外(t *testing.T) {
 	dir := t.TempDir()
 	createFile(t, dir, ".DS_Store", date(2026, 10, 27))
 
-	if _, err := Run(dir); err != nil {
+	if _, err := Run(dir, ByDate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -94,7 +94,7 @@ func TestRun_同名ファイルには連番を付ける(t *testing.T) {
 	createFile(t, destDir, "report (1).pdf", date(2026, 10, 29))
 	createFile(t, dir, "report.pdf", date(2026, 10, 29))
 
-	moves, err := Run(dir)
+	moves, err := Run(dir, ByDate)
 	if err != nil {
 		t.Fatal(err)
 	}

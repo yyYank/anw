@@ -13,8 +13,22 @@ type Move struct {
 	To   string
 }
 
-// Run は dir 直下のファイルを、更新日時の yyyy-mm-dd ディレクトリに移動する。
-func Run(dir string) ([]Move, error) {
+// By は振り分けの基準を表す。
+type By string
+
+// ByDate は更新日時の yyyy-mm-dd ディレクトリに振り分ける。
+const ByDate By = "date"
+
+// ParseBy は --by の値を By にする。対応していない値ならエラーにする。
+func ParseBy(s string) (By, error) {
+	if By(s) != ByDate {
+		return "", fmt.Errorf("--by に指定できるのは date のみです: %q", s)
+	}
+	return By(s), nil
+}
+
+// Run は dir 直下のファイルを、by の基準で振り分ける。
+func Run(dir string, by By) ([]Move, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
