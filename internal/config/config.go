@@ -12,6 +12,8 @@ import (
 // Config は anw の設定。
 type Config struct {
 	HistoryDir string `toml:"history_dir"`
+	// Snippets は名前ごとの snippet のステップ。toml では [[snippet.名前]] で書く
+	Snippets map[string][]Step `toml:"snippet"`
 }
 
 // DefaultPath は設定ファイルの既定のパスを返す。
@@ -46,6 +48,18 @@ func Load(path string) (Config, error) {
 			return Config{}, err
 		}
 		cfg.HistoryDir = filepath.Join(home, ".anw")
+	}
+	for _, steps := range cfg.Snippets {
+		for i := range steps {
+			if steps[i].Dir == "" {
+				continue
+			}
+			dir, err := expandPath(steps[i].Dir)
+			if err != nil {
+				return Config{}, err
+			}
+			steps[i].Dir = dir
+		}
 	}
 	return cfg, nil
 }
