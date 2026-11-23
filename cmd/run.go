@@ -3,7 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -116,6 +119,31 @@ func validateArgs(args []string) error {
 		return err
 	}
 	return sub.ValidateFlagGroups()
+}
+
+// viewSnippets は snippet ごとのステップを名前順に出力する。args に名前があればその snippet だけにする。
+func viewSnippets(w io.Writer, args []string) error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	names := slices.Sorted(maps.Keys(cfg.Snippets))
+	if len(args) == 1 {
+		if _, ok := cfg.Snippets[args[0]]; !ok {
+			return fmt.Errorf("snippet %q がありません", args[0])
+		}
+		names = args
+	}
+	if len(names) == 0 {
+		return errors.New("snippet がありません")
+	}
+	for _, name := range names {
+		fmt.Fprintln(w, name)
+		for i, s := range cfg.Snippets[name] {
+			fmt.Fprintf(w, "  %d. %s: anw %s\n", i+1, s.Dir, strings.Join(s.Args, " "))
+		}
+	}
+	return nil
 }
 
 // resetFlags はすべてのコマンドのフラグを初期値に戻す。

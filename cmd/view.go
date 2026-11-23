@@ -18,5 +18,7 @@ func init() {
 			run: func(cmd *cobra.Command, args []string) error { return viewAI(cmd.OutOrStdout(), args) }},
 		{name: "dotfiles", desc: "ホームの設定ファイルの一覧と内容のプレビュー",
 			run: func(cmd *cobra.Command, args []string) error { return viewDotfiles() }},
+		{name: "snippet", desc: "snippet の一覧", argHint: "[名前]",
+			run: func(cmd *cobra.Command, args []string) error { return viewSnippets(cmd.OutOrStdout(), args) }},
 	})
 }

@@ -206,3 +206,66 @@ args = ["delete", "--branch"]`)
 		t.Errorf("snippet の履歴になっていない: %+v", r)
 	}
 }
+
+// view --snippet で、snippet ごとのステップを名前順に出力すること
+func TestView_snippetは一覧を出力する(t *testing.T) {
+	cli, a, b := setupSnippet(t,
+		`dir = "{a}"
+args = ["tidy"]`,
+		`dir = "{b}"
+args = ["tidy", "--by", "month"]`)
+	appendConfig(t, cli, "\n[[snippet.another]]\ndir = \"/tmp\"\nargs = [\"view\", \"--env\"]\n")
+
+	if err := cli.run("view", "--snippet"); err != nil {
+		t.Fatal(err)
+	}
+
+	out := cli.out.String()
+	for _, s := range []string{"another", "s", a + ": anw tidy", b + ": anw tidy --by month", "/tmp: anw view --env"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("%q が出力されていない:\n%s", s, out)
+		}
+	}
+	if strings.Index(out, "another") > strings.Index(out, a) {
+		t.Errorf("名前順になっていない:\n%s", out)
+	}
+}
+
+// view --snippet 名前 で、その snippet だけを出力すること
+func TestView_snippet名前指定はそのsnippetだけ(t *testing.T) {
+	cli, a, _ := setupSnippet(t, `dir = "{a}"`+"\n"+`args = ["tidy"]`)
+	appendConfig(t, cli, "\n[[snippet.another]]\ndir = \"/tmp\"\nargs = [\"view\", \"--env\"]\n")
+
+	if err := cli.run("view", "--snippet", "s"); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := cli.out.String(); !strings.Contains(out, a) || strings.Contains(out, "another") {
+		t.Errorf("snippet s だけになっていない:\n%s", out)
+	}
+}
+
+// 存在しない snippet や、snippet が1つもないときはエラーにすること
+func TestView_snippetがなければエラー(t *testing.T) {
+	cli, _, _ := setupSnippet(t, `dir = "{a}"`+"\n"+`args = ["tidy"]`)
+	if err := cli.run("view", "--snippet", "none"); err == nil {
+		t.Error("存在しない snippet がエラーにならなかった")
+	}
+
+	if err := setupCLI(t).run("view", "--snippet"); err == nil {
+		t.Error("snippet がないのにエラーにならなかった")
+	}
+}
+
+// appendConfig はテスト用の toml に content を書き足す
+func appendConfig(t *testing.T, cli *testCLI, content string) {
+	t.Helper()
+	f, err := os.OpenFile(cli.configPath, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+}
