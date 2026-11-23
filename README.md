@@ -22,12 +22,13 @@ anw <動詞> --<対象>
 
 | 動詞 | 内容 | 対象 |
 | --- | --- | --- |
-| `view` | 見る | `--env` `--port` `--branch` `--worktree` `--stash` `--ai` `--dotfiles` |
+| `view` | 見る | `--env` `--port` `--branch` `--worktree` `--stash` `--ai` `--dotfiles` `--snippet` |
 | `edit` | 編集する | `--env` `--dotfiles` |
 | `kill` | プロセスを止める | `--port` |
 | `delete` | 削除する | `--branch` `--worktree` `--stash` |
 | `tidy` | ファイルを振り分ける | |
 | `undo` | 直前の操作を元に戻す | |
+| `run` | snippet を実行する | `--snippet` |
 
 `view` は見るだけで、何も変更しません。
 
@@ -36,7 +37,7 @@ anw <動詞> --<対象>
 対象を省略して動詞だけ打つと、その動詞で使える対象から選べます。選んだあとは、フラグを付けた場合と同じ動作になります。
 
 ```sh
-anw view            # env / port / branch / worktree / stash / ai / dotfiles から選ぶ
+anw view            # env / port / branch / worktree / stash / ai / dotfiles / snippet から選ぶ
 anw view --env      # 選択を挟まず直行
 ```
 
@@ -50,6 +51,7 @@ view: 何を見ますか？
   stash    stash の一覧
   ai       コーディングエージェントのセッション
   dotfiles ホームの設定ファイルの一覧と内容のプレビュー
+  snippet  snippet の一覧
 ```
 
 | キー | 動き |
@@ -58,9 +60,11 @@ view: 何を見ますか？
 | `Enter` | 決定 |
 | `q` / `Esc` | 終了 |
 
-- 対象が1つしかない動詞（`kill`）は、選択を挟まずにその対象へ進みます
+- 対象が1つしかない動詞（`kill`、`run`）は、選択を挟まずにその対象へ進みます
 - `anw` だけを打つと、動詞と対象の対応表を出します
 - その動詞で使えない対象を指定すると、使える対象を表示します（例: `anw kill --env` → `kill で使えるのは --port です`）
+
+一覧の画面で選ばずに `q` / `Esc` でやめると、終了コード 130 で終わります。
 
 ---
 
@@ -78,6 +82,8 @@ anw view --stash        # stash の一覧
 anw view --ai           # コーディングエージェントのセッションを全プロジェクト横断で一覧
 anw view --ai .         # 今いるリポジトリ（別の worktree を含む）のセッションだけ
 anw view --dotfiles     # ホームの設定ファイルの一覧と内容のプレビュー
+anw view --snippet      # snippet の一覧と中身
+anw view --snippet hoge # snippet hoge の中身
 ```
 
 **`--env`**
@@ -133,6 +139,10 @@ anw view --dotfiles     # ホームの設定ファイルの一覧と内容のプ
 - テキストでないファイル、1MB を超えるファイル、`cache`・`Cache`・`logs` ディレクトリの中は対象外です
 - 画面と操作は `--env` と同じです（`/` でパス、`Ctrl+G` で中身を絞り込み）
 - 管理はしません。探して見る・開くだけです
+
+**`--snippet`**
+
+- [設定](#設定) に書いた snippet の、ステップごとの dir と実行するコマンドを表示します
 
 ### anw edit
 
@@ -267,6 +277,19 @@ anw undo
 - `anw kill` で止めたプロセス、`anw edit` での編集、`anw delete --worktree` で削除した worktree は戻せません
 - 操作の履歴は、既定では `~/.anw/` に保存されます（[設定](#設定)で変更できます）
 
+### anw run
+
+[設定](#設定) に書いた snippet を実行します。anw のコマンドを、ステップごとに指定したディレクトリで順に実行します。
+
+```sh
+anw run --snippet morning
+```
+
+- 実行する前に、すべてのステップの dir が存在するかと、anw のコマンドとして正しいかを確認します。1つでも誤りがあれば、何も実行しません
+- 途中のステップが失敗するか、一覧の画面でやめると、そこで止めます
+- snippet で行ったファイル操作は、`anw undo` でまとめて元に戻せます
+- 実行できるのは anw のコマンドだけです。シェルのコマンドや、snippet からの `anw run` は実行できません
+
 ## 設定
 
 `~/.config/anw/config.toml` で設定できます。
@@ -283,6 +306,23 @@ history_dir = "~/.anw"
 ```sh
 anw --config ./config.toml tidy
 ```
+
+### snippet
+
+`[[snippet.名前]]` に、ステップを実行する順に書きます。
+
+```toml
+[[snippet.morning]]
+dir = "~/Desktop"
+args = ["tidy"]
+
+[[snippet.morning]]
+dir = "~/Downloads"
+args = ["tidy", "--by", "month"]
+```
+
+- `dir` はステップを実行するディレクトリです。`~` と環境変数は展開されます
+- `args` は anw に渡す引数です。上の例は `cd ~/Desktop && anw tidy && cd ~/Downloads && anw tidy --by month` と同じ動きです
 
 ## License
 
