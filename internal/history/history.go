@@ -17,6 +17,8 @@ const (
 	KindTidy         = "tidy"
 	KindDeleteBranch = "delete-branch"
 	KindDropStash    = "drop-stash"
+	// KindSnippet は snippet で行った複数の操作。Steps に行った順に入る
+	KindSnippet = "snippet"
 )
 
 // Record は直前の操作を元に戻すための記録。Kind で操作の種類を見分ける。
@@ -25,24 +27,26 @@ type Record struct {
 	Moves    []tidy.Move    `json:"moves,omitempty"`
 	Branches []branch.Saved `json:"branches,omitempty"`
 	Stashes  []stash.Saved  `json:"stashes,omitempty"`
+	Steps    []Record       `json:"steps,omitempty"`
 }
 
 // Save は直前の操作として tidy の移動 moves を path に保存する。
 func Save(path string, moves []tidy.Move) error {
-	return saveRecord(path, Record{Kind: KindTidy, Moves: moves})
+	return SaveRecord(path, Record{Kind: KindTidy, Moves: moves})
 }
 
 // SaveBranches は直前の操作として、削除したブランチの記録 saved を path に保存する。
 func SaveBranches(path string, saved []branch.Saved) error {
-	return saveRecord(path, Record{Kind: KindDeleteBranch, Branches: saved})
+	return SaveRecord(path, Record{Kind: KindDeleteBranch, Branches: saved})
 }
 
 // SaveStashes は直前の操作として、消した stash の記録 saved を path に保存する。
 func SaveStashes(path string, saved []stash.Saved) error {
-	return saveRecord(path, Record{Kind: KindDropStash, Stashes: saved})
+	return SaveRecord(path, Record{Kind: KindDropStash, Stashes: saved})
 }
 
-func saveRecord(path string, r Record) error {
+// SaveRecord は直前の操作として r を path に保存する。
+func SaveRecord(path string, r Record) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -78,29 +82,48 @@ func Undo(path string) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	switch r.Kind {
-	case KindTidy:
+	if r.Kind == KindTidy {
+		// 途中で失敗しても、戻せた分を呼び出し元に伝える
 		moves, err := undoMoves(r.Moves)
 		if err != nil {
 			return Record{Kind: KindTidy, Moves: moves}, err
 		}
+	} else if err := undoRecord(r); err != nil {
+		return Record{}, err
+	}
+	return r, os.Remove(path)
+}
+
+// undoRecord は r の操作を元に戻す。
+func undoRecord(r Record) error {
+	switch r.Kind {
+	case KindTidy:
+		if _, err := undoMoves(r.Moves); err != nil {
+			return err
+		}
 	case KindDeleteBranch:
 		if err := undoBranches(r.Branches); err != nil {
-			return Record{}, err
+			return err
 		}
 	case KindDropStash:
 		for _, s := range r.Stashes {
 			if err := stash.CheckRestore(s); err != nil {
-				return Record{}, err
+				return err
 			}
 		}
 		if err := stash.Restore(r.Stashes); err != nil {
-			return Record{}, err
+			return err
+		}
+	case KindSnippet:
+		for i := len(r.Steps) - 1; i >= 0; i-- {
+			if err := undoRecord(r.Steps[i]); err != nil {
+				return fmt.Errorf("snippet の%d番目の操作を戻せませんでした: %w", i+1, err)
+			}
 		}
 	default:
-		return Record{}, fmt.Errorf("元に戻せない種類の操作です: %q", r.Kind)
+		return fmt.Errorf("元に戻せない種類の操作です: %q", r.Kind)
 	}
-	return r, os.Remove(path)
+	return nil
 }
 
 // undoMoves は tidy の移動を逆向きに戻し、戻した移動を返す。移動先のディレクトリが空になった場合は削除する。

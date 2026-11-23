@@ -78,11 +78,7 @@ func deleteBranches(out, errOut io.Writer, force bool) error {
 		fmt.Fprintf(out, "deleted %s\n", b.Name)
 	}
 	if len(deleted) > 0 {
-		path, err := historyPath()
-		if err == nil {
-			err = history.SaveBranches(path, deleted)
-		}
-		if err != nil {
+		if err := saveHistory(history.Record{Kind: history.KindDeleteBranch, Branches: deleted}); err != nil {
 			return fmt.Errorf("削除したブランチを履歴に書けませんでした: %w", err)
 		}
 	}

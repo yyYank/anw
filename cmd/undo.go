@@ -19,11 +19,14 @@ var undoCmd = &cobra.Command{
 			return err
 		}
 		r, err := history.Undo(path)
-		for _, m := range r.Moves {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s -> %s\n", m.To, m.From)
-		}
-		for _, b := range r.Branches {
-			fmt.Fprintf(cmd.OutOrStdout(), "restored %s (%s)\n", b.Name, b.Commit)
+		// snippet の記録は、各ステップで戻した内容も表示する
+		for _, s := range append([]history.Record{r}, r.Steps...) {
+			for _, m := range s.Moves {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s -> %s\n", m.To, m.From)
+			}
+			for _, b := range s.Branches {
+				fmt.Fprintf(cmd.OutOrStdout(), "restored %s (%s)\n", b.Name, b.Commit)
+			}
 		}
 		if errors.Is(err, os.ErrNotExist) && len(r.Moves) == 0 {
 			return errors.New("元に戻せる操作がありません")

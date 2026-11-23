@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yyYank/anw/internal/config"
+	"github.com/yyYank/anw/internal/history"
 )
 
 var configPath string
@@ -31,7 +32,7 @@ var rootCmd = &cobra.Command{
 }
 
 // verbOrder は対応表に並べる動詞の順。tidy と undo は対象を取らない
-var verbOrder = []string{"view", "edit", "kill", "delete", "tidy", "undo"}
+var verbOrder = []string{"view", "edit", "kill", "delete", "tidy", "undo", "run"}
 
 // printVerbTable は動詞と、その動詞で使える対象の対応表を出力する。
 func printVerbTable(w io.Writer) error {
@@ -83,6 +84,22 @@ func historyPath() (string, error) {
 		return "", err
 	}
 	return cfg.HistoryFile(), nil
+}
+
+// snippetRecords は snippet の実行中に、各ステップの操作の記録をためておく先。nil なら snippet の実行中ではない
+var snippetRecords *[]history.Record
+
+// saveHistory は r を直前の操作として履歴に保存する。snippet の実行中なら、ためておくだけにする。
+func saveHistory(r history.Record) error {
+	if snippetRecords != nil {
+		*snippetRecords = append(*snippetRecords, r)
+		return nil
+	}
+	path, err := historyPath()
+	if err != nil {
+		return err
+	}
+	return history.SaveRecord(path, r)
 }
 
 func init() {

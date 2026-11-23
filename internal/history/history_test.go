@@ -209,3 +209,35 @@ func TestUndo_移動元のディレクトリを作り直す(t *testing.T) {
 		t.Errorf("空の月ディレクトリが残っている: %v", err)
 	}
 }
+
+// snippet でまとめた複数の操作を、後のものから順に元に戻すこと
+func TestUndo_snippetの操作をまとめて戻す(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".anw", "history.json")
+	memo := filepath.Join(dir, "a", "memo.md")
+	report := filepath.Join(dir, "b", "report.pdf")
+	memoTo := filepath.Join(dir, "a", "2026-10-27", "memo.md")
+	reportTo := filepath.Join(dir, "b", "2026-10-27", "report.pdf")
+	writeFile(t, memoTo)
+	writeFile(t, reportTo)
+	steps := []Record{
+		{Kind: KindTidy, Moves: []tidy.Move{{From: memo, To: memoTo}}},
+		{Kind: KindTidy, Moves: []tidy.Move{{From: report, To: reportTo}}},
+	}
+	if err := SaveRecord(path, Record{Kind: KindSnippet, Steps: steps}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Undo(path); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range []string{memo, report} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("元の場所に戻っていない: %v", err)
+		}
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("履歴が消えていない: %v", err)
+	}
+}

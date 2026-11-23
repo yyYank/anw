@@ -220,7 +220,7 @@ func TestRoot_対応表の並びと見出し(t *testing.T) {
 			firsts = append(firsts, fields[0])
 		}
 	}
-	if got, want := strings.Join(firsts, ","), "VERB,view,edit,kill,delete,tidy,undo"; got != want {
+	if got, want := strings.Join(firsts, ","), "VERB,view,edit,kill,delete,tidy,undo,run"; got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
 }

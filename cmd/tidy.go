@@ -29,11 +29,7 @@ var tidyCmd = &cobra.Command{
 		moves, err := tidy.Run(dir, by)
 		// 途中で失敗しても、移動済みの分は元に戻せるように保存する
 		if len(moves) > 0 {
-			path, herr := historyPath()
-			if herr != nil {
-				return errors.Join(err, herr)
-			}
-			if herr := history.Save(path, moves); herr != nil {
+			if herr := saveHistory(history.Record{Kind: history.KindTidy, Moves: moves}); herr != nil {
 				return errors.Join(err, herr)
 			}
 		}

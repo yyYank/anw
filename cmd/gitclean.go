@@ -142,11 +142,7 @@ func deleteStashes(out io.Writer) error {
 	}
 	// 途中で失敗しても、消した分は作り直せるように保存する
 	if len(saved) > 0 {
-		path, err := historyPath()
-		if err == nil {
-			err = history.SaveStashes(path, saved)
-		}
-		if err != nil {
+		if err := saveHistory(history.Record{Kind: history.KindDropStash, Stashes: saved}); err != nil {
 			return errors.Join(dropErr, fmt.Errorf("消した stash を履歴に書けませんでした: %w", err))
 		}
 	}
