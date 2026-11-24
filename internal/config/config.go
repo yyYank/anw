@@ -14,6 +14,8 @@ type Config struct {
 	HistoryDir string `toml:"history_dir"`
 	// Snippets は名前ごとの snippet のステップ。toml では [[snippet.名前]] で書く
 	Snippets map[string][]Step `toml:"snippet"`
+	// snippetErrs は読めなかった snippet ごとのエラー。使うときにエラーにする
+	snippetErrs map[string]error
 }
 
 // DefaultPath は設定ファイルの既定のパスを返す。
@@ -60,6 +62,9 @@ func Load(path string) (Config, error) {
 			}
 			steps[i].Dir = dir
 		}
+	}
+	if err := cfg.loadSnippetFiles(SnippetDir(path)); err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
 }
