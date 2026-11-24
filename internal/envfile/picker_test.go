@@ -378,21 +378,6 @@ func TestPicker_右のpaneでgとGとCtrlDとCtrlU(t *testing.T) {
 	}
 }
 
-// WithTail ならプレビューを末尾から表示し、一覧で別の行に移ってもその行の末尾から表示すること
-func TestPicker_WithTailは末尾から表示する(t *testing.T) {
-	contents := longContents()
-	contents[1] = strings.Replace(contents[0], "L", "M", -1)
-	m := sized(NewPickerWithContents([]string{"a", "b"}, contents, true).WithTail(), 80, 12)
-
-	if view := m.View(); !strings.Contains(view, "L50") || strings.Contains(view, "L01") {
-		t.Errorf("末尾から表示していない:\n%s", view)
-	}
-	m = press(m, typed("l"), typed("g"), typed("h"), typed("j"))
-	if view := m.View(); !strings.Contains(view, "M50") {
-		t.Errorf("別の行に移って末尾に戻っていない:\n%s", view)
-	}
-}
-
 // 一覧で別の行に移ったら、プレビューの位置を先頭に戻すこと
 func TestPicker_別の行に移ったらプレビューを先頭に戻す(t *testing.T) {
 	contents := longContents()

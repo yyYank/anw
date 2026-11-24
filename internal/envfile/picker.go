@@ -57,9 +57,8 @@ type Picker struct {
 	height int
 	// focusPreview はプレビューの pane に移っているか。移っていれば j/k でプレビューを動かす
 	focusPreview bool
-	// scroll はプレビューの先頭に表示する行。tail ならカーソルを動かすたびに末尾に戻す
+	// scroll はプレビューの先頭に表示する行
 	scroll int
-	tail   bool
 }
 
 // NewPicker は items を表示する Picker を返す。
@@ -108,13 +107,6 @@ func (m Picker) label(i int) string {
 		return m.labels[i]
 	}
 	return m.items[i]
-}
-
-// WithTail はプレビューを末尾から表示する Picker を返す。
-func (m Picker) WithTail() Picker {
-	m.tail = true
-	m.resetScroll()
-	return m
 }
 
 // WithTitle は一覧の見出しを title にした Picker を返す。
@@ -223,7 +215,7 @@ func (m *Picker) startInput(mode string) {
 	m.refilter()
 }
 
-// moveCursor はカーソルを delta 行動かす。一覧の外には出ない。プレビューは表示し始める位置に戻す。
+// moveCursor はカーソルを delta 行動かす。一覧の外には出ない。プレビューは先頭に戻す。
 func (m *Picker) moveCursor(delta int) {
 	m.cursor = min(max(m.cursor+delta, 0), max(len(m.visible)-1, 0))
 	m.resetScroll()
@@ -238,12 +230,9 @@ func (m *Picker) moveFocused(delta int) {
 	m.moveCursor(delta)
 }
 
-// resetScroll はプレビューを表示し始める位置に戻す。tail なら末尾、そうでなければ先頭にする。
+// resetScroll はプレビューを先頭に戻す。
 func (m *Picker) resetScroll() {
 	m.scroll = 0
-	if m.tail {
-		m.scroll = scrollEnd
-	}
 }
 
 // scrollBy はプレビューを delta 行動かす。先頭と末尾より先には動かない。
