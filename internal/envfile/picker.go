@@ -20,6 +20,8 @@ const (
 	modeNormal = ""
 	modePath   = "path"
 	modeGrep   = "grep"
+	// modeFind はプレビューの中を検索する語の入力モード
+	modeFind = "find"
 )
 
 var (
@@ -59,6 +61,10 @@ type Picker struct {
 	focusPreview bool
 	// scroll はプレビューの先頭に表示する行
 	scroll int
+	// find はプレビューの中を検索する語。n / N で次と前の一致へ飛ぶ
+	find string
+	// notice は一番下の行に一度だけ出す知らせ
+	notice string
 }
 
 // NewPicker は items を表示する Picker を返す。
@@ -134,8 +140,25 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	if m.mode == modeFind {
+		return m.updateFind(key)
+	}
 	if m.mode != modeNormal {
 		return m.updateInput(key)
+	}
+	m.notice = ""
+	if m.focusPreview {
+		switch key.String() {
+		case "/":
+			m.mode, m.find = modeFind, ""
+			return m, nil
+		case "n":
+			m.jumpToMatch(1)
+			return m, nil
+		case "N":
+			m.jumpToMatch(-1)
+			return m, nil
+		}
 	}
 	switch key.String() {
 	case "up", "k":
@@ -207,6 +230,79 @@ func (m Picker) updateInput(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refilter()
 	}
 	return m, nil
+}
+
+// updateFind はプレビューの中を検索する語の入力を処理する。
+// Enter は今の位置から下の最初の一致へ飛び、Esc は検索をやめる。
+func (m Picker) updateFind(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEnter:
+		m.mode = modeNormal
+		m.jumpToMatch(0)
+	case tea.KeyEsc:
+		m.mode, m.find = modeNormal, ""
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	case tea.KeyBackspace:
+		if r := []rune(m.find); len(r) > 0 {
+			m.find = string(r[:len(r)-1])
+		}
+	case tea.KeyRunes, tea.KeySpace:
+		m.find += string(key.Runes)
+	}
+	return m, nil
+}
+
+// jumpToMatch はプレビューを、find を含む行へ動かす。
+// dir が 0 なら今の行から下、1 なら次の行から下、-1 なら前の行から上を探し、端まで行ったら反対の端から探す。
+func (m *Picker) jumpToMatch(dir int) {
+	if m.find == "" || len(m.visible) == 0 {
+		return
+	}
+	_, previewWidth, _ := m.layout(m.columnWidths())
+	lines := m.previewLines(m.visible[m.cursor], previewWidth)
+	cur := m.clampedScroll()
+	step := 1
+	if dir < 0 {
+		step = -1
+	}
+	for k := 0; k < len(lines); k++ {
+		i := ((cur+dir+step*k)%len(lines) + len(lines)) % len(lines)
+		if containsFold(ansi.Strip(lines[i]), m.find) {
+			m.scroll = i
+			return
+		}
+	}
+	m.notice = "見つかりません: " + m.find
+}
+
+// highlightFind は line の中の find に一致する部分を強調する。
+func (m Picker) highlightFind(line string) string {
+	plain := ansi.Strip(line)
+	lower := strings.ToLower(plain)
+	// 小文字にすると長さが変わる文字があれば、行ごと強調する
+	if m.find == "" || len(lower) != len(plain) {
+		if m.find != "" && containsFold(plain, m.find) {
+			return matchStyle.Render(plain)
+		}
+		return line
+	}
+	word := strings.ToLower(m.find)
+	var b strings.Builder
+	rest := 0
+	for {
+		at := strings.Index(lower[rest:], word)
+		if at < 0 {
+			break
+		}
+		b.WriteString(plain[rest : rest+at])
+		b.WriteString(matchStyle.Render(plain[rest+at : rest+at+len(word)]))
+		rest += at + len(word)
+	}
+	if rest == 0 {
+		return line
+	}
+	return b.String() + plain[rest:]
 }
 
 // startInput は mode の入力モードに入り、新しく入力を始める。
@@ -327,7 +423,9 @@ func (m Picker) View() string {
 		if rows >= 0 {
 			end = min(start+rows, end)
 		}
-		preview = append(preview, lines[start:end]...)
+		for _, line := range lines[start:end] {
+			preview = append(preview, m.highlightFind(line))
+		}
 	}
 
 	listStyle, previewStyle := activeStyle, paneStyle
@@ -436,13 +534,21 @@ func (m Picker) statusLine() string {
 		return "/" + m.query + "▏" + helpStyle.Render("  Enter: 確定  Esc: 解除")
 	case modeGrep:
 		return "grep: " + m.query + "▏" + helpStyle.Render("  Enter: 確定  Esc: 解除")
+	case modeFind:
+		return "検索: " + m.find + "▏" + helpStyle.Render("  Enter: 移動  Esc: やめる")
+	}
+	if m.notice != "" {
+		return m.notice
 	}
 	help := "↑↓/jk: 移動  →/l: プレビューへ  /: パス検索  Ctrl+G: 中身検索  q: 終了"
 	if m.selectable {
 		help = "↑↓/jk: 移動  →/l: プレビューへ  /: パス検索  Ctrl+G: 中身検索  Enter: 編集  q: やめる"
 	}
 	if m.focusPreview {
-		help = "↑↓/jk: スクロール  g/G: 先頭/末尾  Ctrl+D/U: 半ページ  ←/h: 一覧へ  q: やめる"
+		help = "↑↓/jk: スクロール  g/G: 先頭/末尾  Ctrl+D/U: 半ページ  /: 検索  n/N: 次/前  ←/h: 一覧へ  q: やめる"
+		if m.find != "" {
+			help = "検索: " + m.find + "  " + help
+		}
 	}
 	if m.altLabels != nil {
 		help = strings.Replace(help, "  q:", "  p: 表示切替  q:", 1)

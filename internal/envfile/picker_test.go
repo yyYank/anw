@@ -399,3 +399,63 @@ func TestPicker_長い行は折り返す(t *testing.T) {
 		t.Errorf("折り返されていない:\n%s", view)
 	}
 }
+
+// needleContents は L10 と L30 に needle を含む50行と、2つ目の要素の中身を返す
+func needleContents() []string {
+	c := longContents()
+	c[0] = strings.Replace(c[0], "L10", "L10 needle", 1)
+	c[0] = strings.Replace(c[0], "L30", "L30 Needle", 1)
+	return c
+}
+
+// 右の pane の / で検索し、Enter で今の位置から下の最初の一致へ飛ぶこと。大文字小文字は区別しない
+func TestPicker_右のpaneのスラッシュで検索して飛ぶ(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a", "b"}, needleContents(), true), 80, 12)
+
+	m = press(m, typed("l"), typed("/"), typed("NEEDLE"))
+	if m.Mode() == modePath {
+		t.Fatal("一覧の絞り込みになった")
+	}
+	m = press(m, keyEnter)
+
+	if view := m.View(); strings.Contains(view, "L09") || !strings.Contains(view, "L10 needle") {
+		t.Errorf("一致した行へ飛んでいない:\n%s", view)
+	}
+	if m.Query() != "" {
+		t.Errorf("一覧が %q で絞り込まれた", m.Query())
+	}
+}
+
+// n で次の一致、N で前の一致へ飛び、端まで行ったら反対の端から探すこと
+func TestPicker_nとNで次と前の一致へ飛ぶ(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a", "b"}, needleContents(), true), 80, 12)
+	m = press(m, typed("l"), typed("/"), typed("needle"), keyEnter)
+
+	m = press(m, typed("n"))
+	if view := m.View(); strings.Contains(view, "L29") || !strings.Contains(view, "L30 Needle") {
+		t.Errorf("n で次の一致へ飛んでいない:\n%s", view)
+	}
+	m = press(m, typed("N"))
+	if view := m.View(); strings.Contains(view, "L09") || !strings.Contains(view, "L10 needle") {
+		t.Errorf("N で前の一致へ飛んでいない:\n%s", view)
+	}
+	m = press(m, typed("n"), typed("n"))
+	if view := m.View(); !strings.Contains(view, "L10 needle") || strings.Contains(view, "L09") {
+		t.Errorf("最後の一致から先頭の一致へ戻っていない:\n%s", view)
+	}
+}
+
+// 一致がなければ動かずに知らせ、Esc なら検索をやめて動かないこと
+func TestPicker_検索で一致がなければ知らせる(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a", "b"}, needleContents(), true), 80, 12)
+
+	got := press(m, typed("l"), typed("/"), typed("zzz"), keyEnter)
+	if view := got.View(); !strings.Contains(view, "L01") || !strings.Contains(view, "見つかりません") {
+		t.Errorf("動いたか、知らせていない:\n%s", view)
+	}
+
+	got = press(m, typed("l"), typed("/"), typed("needle"), keyEsc)
+	if view := got.View(); !strings.Contains(view, "L01") || got.Mode() != "" {
+		t.Errorf("Esc で検索をやめていない:\n%s", view)
+	}
+}
