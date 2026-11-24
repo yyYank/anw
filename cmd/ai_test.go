@@ -47,7 +47,7 @@ func TestView_aiはセッションを一覧する(t *testing.T) {
 	if p == nil || len(p.labels) != 3 {
 		t.Fatalf("一覧が表示されていない: %+v", p)
 	}
-	for _, s := range []string{"2026-11-03 10:00", "claude", "/work/app", "fix/login", "ログインのバグを直して"} {
+	for _, s := range []string{"11-03 10:00", "claude", "work/app", "fix/login", "ログインのバグを直して"} {
 		if !strings.Contains(p.labels[0], s) {
 			t.Errorf("%q が一覧にない: %q", s, p.labels[0])
 		}
@@ -134,6 +134,36 @@ func TestView_aiは消えた作業ディレクトリに印を付ける(t *testin
 	p := cli.sessionPicker
 	if strings.Contains(p.labels[0], "削除済み") || !strings.Contains(p.labels[1], "削除済み") {
 		t.Errorf("印が正しくない: %q", p.labels)
+	}
+}
+
+// 一覧ではリポジトリの「親/名前」を先頭に出し、切り替え先ではフルパスを出すこと
+func TestView_aiはリポジトリの親と名前を出す(t *testing.T) {
+	cli := setupCLI(t)
+	cli.sessions = []aisession.Session{
+		{Agent: "claude", ID: "s1", Cwd: "/Users/me/ghq/github.com/yyYank/anw-wt/cmd", Updated: time.Now()},
+		{Agent: "claude", ID: "s2", Cwd: "/Users/me/tmp/scratch", Updated: time.Now()},
+	}
+	cli.sessionPick = -1
+	// worktree のサブディレクトリでも、本体のリポジトリにまとまる
+	cli.repos = map[string]string{"/Users/me/ghq/github.com/yyYank/anw-wt/cmd": "/Users/me/ghq/github.com/yyYank/anw"}
+
+	if err := cli.run("view", "--ai"); err != nil {
+		t.Fatal(err)
+	}
+
+	p := cli.sessionPicker
+	for i, want := range []string{"yyYank/anw ", "tmp/scratch "} {
+		if !strings.HasPrefix(p.labels[i], want) || strings.Contains(p.labels[i], "/Users/me") {
+			t.Errorf("labels[%d] = %q, want 先頭が %q", i, p.labels[i], want)
+		}
+		if !strings.HasPrefix(p.fullLabels[i], cli.sessions[i].Cwd+" ") {
+			t.Errorf("fullLabels[%d] = %q, want 先頭が %q", i, p.fullLabels[i], cli.sessions[i].Cwd)
+		}
+	}
+	// 列がそろうよう、短い方を空白で埋める
+	if strings.Index(p.labels[0], "claude") != strings.Index(p.labels[1], "claude") {
+		t.Errorf("列がそろっていない: %q", p.labels)
 	}
 }
 

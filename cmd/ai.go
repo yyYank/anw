@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/yyYank/anw/internal/aisession"
 	"github.com/yyYank/anw/internal/envfile"
 )
@@ -46,14 +48,17 @@ func viewAI(w io.Writer, args []string) error {
 	}
 
 	keys := make([]string, len(sessions))
-	labels := make([]string, len(sessions))
+	dirs := make([]string, len(sessions))
+	fullDirs := make([]string, len(sessions))
 	contents := make([]string, len(sessions))
 	for i, s := range sessions {
 		keys[i] = s.Cwd
-		labels[i] = sessionLabel(s)
+		dirs[i], fullDirs[i] = sessionDirs(s)
 		contents[i] = transcript(s)
 	}
-	i, ok, err := showSessionPicker(keys, labels, contents)
+	labels := sessionLabels(sessions, dirs)
+	fullLabels := sessionLabels(sessions, fullDirs)
+	i, ok, err := showSessionPicker(keys, labels, fullLabels, contents)
 	if err != nil || !ok {
 		return err
 	}
@@ -83,17 +88,38 @@ func sessionsInCurrentRepo(sessions []aisession.Session) ([]aisession.Session, e
 	return result, nil
 }
 
-// sessionLabel は一覧に出す1行。作業ディレクトリがもう存在しなければ印を付ける。
-func sessionLabel(s aisession.Session) string {
-	cwd := s.Cwd
-	if _, ok := repoOf(s.Cwd); !ok {
-		cwd += " (削除済み)"
+// sessionDirs は一覧に出す作業ディレクトリを、リポジトリの「親/名前」とフルパスの2通りで返す。
+// git の外や、作業ディレクトリがもう存在しなければ、作業ディレクトリの「親/名前」にする。存在しなければ印を付ける。
+func sessionDirs(s aisession.Session) (short, full string) {
+	repo, ok := repoOf(s.Cwd)
+	short, full = parentAndName(repo), s.Cwd
+	if !ok {
+		short, full = short+" (削除済み)", full+" (削除済み)"
 	}
-	prompt := []rune(s.FirstPrompt)
-	if len(prompt) > firstPromptWidth {
-		prompt = append(prompt[:firstPromptWidth], '…')
+	return short, full
+}
+
+// parentAndName は path の末尾2階層を返す。
+func parentAndName(path string) string {
+	return filepath.Join(filepath.Base(filepath.Dir(path)), filepath.Base(path))
+}
+
+// sessionLabels は一覧に出す行を、作業ディレクトリ dirs を先頭にして列をそろえて返す。
+func sessionLabels(sessions []aisession.Session, dirs []string) []string {
+	width := 0
+	for _, d := range dirs {
+		width = max(width, lipgloss.Width(d))
 	}
-	return fmt.Sprintf("%s  %-6s  %s  %s  %s", s.Updated.Local().Format("2006-01-02 15:04"), s.Agent, cwd, s.Branch, string(prompt))
+	labels := make([]string, len(sessions))
+	for i, s := range sessions {
+		prompt := []rune(s.FirstPrompt)
+		if len(prompt) > firstPromptWidth {
+			prompt = append(prompt[:firstPromptWidth], '…')
+		}
+		dir := dirs[i] + strings.Repeat(" ", width-lipgloss.Width(dirs[i]))
+		labels[i] = fmt.Sprintf("%s  %s  %-6s  %s  %s", dir, s.Updated.Local().Format("01-02 15:04"), s.Agent, s.Branch, string(prompt))
+	}
+	return labels
 }
 
 // transcript はプレビューと中身の検索に使う、発言を並べた文字列。
@@ -123,9 +149,9 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// runSessionPicker はセッションの一覧を表示し、選ばれたセッションの添字を返す。
-func runSessionPicker(keys, labels, contents []string) (int, bool, error) {
-	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithTitle("セッション")
+// runSessionPicker はセッションの一覧を表示し、選ばれたセッションの添字を返す。p で fullLabels の表示に切り替えられる。
+func runSessionPicker(keys, labels, fullLabels, contents []string) (int, bool, error) {
+	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithAltLabels(fullLabels).WithTitle("セッション")
 	m, err := tea.NewProgram(p).Run()
 	if err != nil {
 		return 0, false, err

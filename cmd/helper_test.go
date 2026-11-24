@@ -200,8 +200,8 @@ func setupCLI(t *testing.T) *testCLI {
 		}
 		return dir, true
 	}
-	showSessionPicker = func(keys, labels, contents []string) (int, bool, error) {
-		c.sessionPicker = &sessionPickerCall{keys: keys, labels: labels, contents: contents}
+	showSessionPicker = func(keys, labels, fullLabels, contents []string) (int, bool, error) {
+		c.sessionPicker = &sessionPickerCall{keys: keys, labels: labels, fullLabels: fullLabels, contents: contents}
 		if c.sessionPick < 0 {
 			return 0, false, nil
 		}
@@ -280,9 +280,10 @@ type filePickerCall struct {
 
 // sessionPickerCall はセッションの一覧に渡された引数
 type sessionPickerCall struct {
-	keys     []string
-	labels   []string
-	contents []string
+	keys       []string
+	labels     []string
+	fullLabels []string
+	contents   []string
 }
 
 // createFile はテスト用ディレクトリにテスト対象のファイルを作り、更新日時を設定する
