@@ -66,15 +66,19 @@ func Execute() {
 
 // loadConfig は --config の toml を読み込む。未指定なら既定のパスを使う。
 func loadConfig() (config.Config, error) {
-	path := configPath
-	if path == "" {
-		p, err := config.DefaultPath()
-		if err != nil {
-			return config.Config{}, err
-		}
-		path = p
+	path, err := configFile()
+	if err != nil {
+		return config.Config{}, err
 	}
 	return config.Load(path)
+}
+
+// configFile は --config のパスを返す。未指定なら既定のパスを返す。
+func configFile() (string, error) {
+	if configPath != "" {
+		return configPath, nil
+	}
+	return config.DefaultPath()
 }
 
 // historyPath は操作の履歴を保存するファイルのパスを返す。
