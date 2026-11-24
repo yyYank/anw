@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/yyYank/anw/internal/aisession"
 	"github.com/yyYank/anw/internal/envfile"
@@ -106,26 +105,20 @@ func parentAndName(path string) string {
 	return filepath.Join(filepath.Base(filepath.Dir(path)), filepath.Base(path))
 }
 
-// sessionLabels は一覧に出す行を、日時・種類・作業ディレクトリ dirs・ブランチ・最初の発言の順に、列をそろえて返す。
-// limit が正なら、dirs をその桁数までに切り詰める。
+// sessionLabels は一覧に出す行を、日時・種類・作業ディレクトリ dirs・ブランチ・最初の発言の順にタブで区切って返す。
+// 列は一覧の画面が表示中の行に合わせてそろえる。limit が正なら、dirs をその桁数までに切り詰める。
 func sessionLabels(sessions []aisession.Session, dirs []string, limit int) []string {
-	shown := make([]string, len(dirs))
-	width := 0
-	for i, d := range dirs {
-		if limit > 0 {
-			d = ansi.Truncate(d, limit, "…")
-		}
-		shown[i] = d
-		width = max(width, lipgloss.Width(d))
-	}
 	labels := make([]string, len(sessions))
 	for i, s := range sessions {
+		dir := dirs[i]
+		if limit > 0 {
+			dir = ansi.Truncate(dir, limit, "…")
+		}
 		prompt := []rune(s.FirstPrompt)
 		if len(prompt) > firstPromptWidth {
 			prompt = append(prompt[:firstPromptWidth], '…')
 		}
-		dir := shown[i] + strings.Repeat(" ", width-lipgloss.Width(shown[i]))
-		labels[i] = fmt.Sprintf("%s  %-6s  %s  %s  %s", s.Updated.Local().Format("01-02 15:04"), s.Agent, dir, s.Branch, string(prompt))
+		labels[i] = strings.Join([]string{s.Updated.Local().Format("01-02 15:04"), s.Agent, dir, s.Branch, string(prompt)}, "\t")
 	}
 	return labels
 }

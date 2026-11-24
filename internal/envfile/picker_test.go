@@ -279,3 +279,22 @@ func TestPicker_切り替える表示がなければpは何もしない(t *testi
 		t.Errorf("p の説明が出ている:\n%s", m.View())
 	}
 }
+
+// 表示の文字列をタブで区切ると、表示中の行の中で列をそろえ、絞り込むとその行に合わせて詰めること
+func TestPicker_タブで区切った列を表示中の行でそろえる(t *testing.T) {
+	keys := []string{"yyYank/gh-chillbox", "cellorb/wizfan-apps-very-long"}
+	labels := []string{"11-19\tclaude\tyyYank/gh-chillbox\tmain", "11-18\tcodex\tcellorb/wizfan-apps-very-long\tdev"}
+	m := NewPickerWithContents(keys, []string{"会話1", "会話2"}, true).WithLabels(labels)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 200, Height: 20})
+	m = next.(Picker)
+
+	if view := m.View(); !strings.Contains(view, "11-19  claude  yyYank/gh-chillbox             main") ||
+		!strings.Contains(view, "11-18  codex   cellorb/wizfan-apps-very-long  dev") {
+		t.Errorf("列がそろっていない:\n%s", view)
+	}
+
+	got := press(m, typed("/"), typed("chill"), keyEnter)
+	if view := got.View(); !strings.Contains(view, "11-19  claude  yyYank/gh-chillbox  main") {
+		t.Errorf("絞り込んだ行に合わせて詰めていない:\n%s", view)
+	}
+}

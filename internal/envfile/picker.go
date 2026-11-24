@@ -32,7 +32,8 @@ type Picker struct {
 	title    string
 	items    []string
 	contents []string
-	// labels は一覧とプレビューの見出しに表示する文字列。nil なら items を表示する
+	// labels は一覧とプレビューの見出しに表示する文字列。nil なら items を表示する。
+	// タブで区切ると、表示中の行の中で列をそろえる
 	labels []string
 	// altItems と altLabels は p で切り替える、絞り込みと表示の文字列。nil なら切り替えない
 	altItems   []string
@@ -223,9 +224,11 @@ func (m Picker) View() string {
 
 	// 枠とパディングで左右それぞれ4桁使う
 	const frame = 4
-	listWidth := 0
-	for i := range m.items {
-		listWidth = max(listWidth, lipgloss.Width(m.label(i))+2)
+	widths := m.columnWidths()
+	// 一致がなくても「(一致なし)」が切れない幅は取る
+	listWidth := lipgloss.Width("  (一致なし)")
+	for _, i := range m.visible {
+		listWidth = max(listWidth, lipgloss.Width(align(m.label(i), widths))+2)
 	}
 	listWidth = min(listWidth, (width-2*frame)/2)
 	previewWidth := width - 2*frame - listWidth
@@ -240,9 +243,9 @@ func (m Picker) View() string {
 	start, end := window(len(m.visible), m.cursor, rows)
 	for i := start; i < end; i++ {
 		if i == m.cursor {
-			list = append(list, cursorStyle.Render("> ")+m.highlightLabel(m.visible[i], cursorStyle))
+			list = append(list, cursorStyle.Render("> ")+m.highlightLabel(m.visible[i], widths, cursorStyle))
 		} else {
-			list = append(list, "  "+m.highlightLabel(m.visible[i], lipgloss.NewStyle()))
+			list = append(list, "  "+m.highlightLabel(m.visible[i], widths, lipgloss.NewStyle()))
 		}
 	}
 	if len(m.visible) == 0 {
@@ -252,7 +255,7 @@ func (m Picker) View() string {
 	preview := []string{}
 	if len(m.visible) > 0 {
 		i := m.visible[m.cursor]
-		preview = append(preview, titleStyle.Render(m.label(i)))
+		preview = append(preview, titleStyle.Render(align(m.label(i), widths)))
 		content := strings.Split(strings.TrimRight(m.contents[i], "\n"), "\n")
 		_, end := window(len(content), 0, rows)
 		for _, line := range content[:end] {
@@ -271,8 +274,8 @@ func (m Picker) View() string {
 }
 
 // highlightLabel は i 番目を base で描画する。表示の文字列が絞り込みの文字列を含むときは、一致した文字を強調する。
-func (m Picker) highlightLabel(i int, base lipgloss.Style) string {
-	label, item := m.label(i), m.item(i)
+func (m Picker) highlightLabel(i int, widths []int, base lipgloss.Style) string {
+	label, item := align(m.label(i), widths), m.item(i)
 	at := strings.Index(label, item)
 	if at < 0 {
 		return base.Render(label)
@@ -304,6 +307,29 @@ func (m Picker) highlightPath(path string, base lipgloss.Style) string {
 		}
 	}
 	return b.String()
+}
+
+// columnWidths は表示中の行の、タブで区切った列ごとの最大の桁数を返す。
+func (m Picker) columnWidths() []int {
+	var widths []int
+	for _, i := range m.visible {
+		for c, cell := range strings.Split(m.label(i), "\t") {
+			if c == len(widths) {
+				widths = append(widths, 0)
+			}
+			widths[c] = max(widths[c], lipgloss.Width(cell))
+		}
+	}
+	return widths
+}
+
+// align は label のタブで区切った列を widths の桁数まで空白で埋め、2桁の空白でつなぐ。最後の列は埋めない。
+func align(label string, widths []int) string {
+	cells := strings.Split(label, "\t")
+	for c := range cells[:len(cells)-1] {
+		cells[c] += strings.Repeat(" ", max(widths[c]-lipgloss.Width(cells[c]), 0))
+	}
+	return strings.Join(cells, "  ")
 }
 
 // statusLine は画面の一番下に出す、入力中の文字かキーの説明を返す。

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -158,22 +157,20 @@ func TestView_aiは日時と種類のあとにリポジトリを出す(t *testin
 	p := cli.sessionPicker
 	for i, dir := range []string{"yyYank/anw", "tmp/scratch"} {
 		s := cli.sessions[i]
-		if want := "11-24 15:06  " + fmt.Sprintf("%-6s", s.Agent) + "  " + dir + " "; !strings.HasPrefix(p.labels[i], want) {
+		// 列は一覧の画面でそろえるので、タブで区切って渡す
+		if want := "11-24 15:06\t" + s.Agent + "\t" + dir + "\t" + s.Branch + "\t"; !strings.HasPrefix(p.labels[i], want) {
 			t.Errorf("labels[%d] = %q, want 先頭が %q", i, p.labels[i], want)
 		}
 		if p.keys[i] != dir || p.fullKeys[i] != s.Cwd {
 			t.Errorf("絞り込みの文字列が %q, %q", p.keys[i], p.fullKeys[i])
 		}
-		if !strings.Contains(p.fullLabels[i], s.Cwd+" ") {
+		if !strings.Contains(p.fullLabels[i], "\t"+s.Cwd+"\t") {
 			t.Errorf("fullLabels[%d] = %q にフルパスがない", i, p.fullLabels[i])
 		}
 	}
-	// 長い名前は切り詰め、ブランチの列をそろえる
+	// 長い名前は切り詰める
 	if strings.Contains(p.labels[2], strings.Repeat("long", 10)) {
 		t.Errorf("長い名前が切り詰められていない: %q", p.labels[2])
-	}
-	if a, b := strings.Index(p.labels[0], "main"), strings.Index(p.labels[1], "dev"); a != b {
-		t.Errorf("ブランチの列がそろっていない: %q", p.labels)
 	}
 }
 
