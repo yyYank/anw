@@ -123,15 +123,22 @@ func sessionLabels(sessions []aisession.Session, dirs []string, limit int) []str
 	return labels
 }
 
+// transcriptDivider はプレビューで、user の発言とエージェントの回答を区切る線
+var transcriptDivider = strings.Repeat("─", 40)
+
 // transcript はプレビューと中身の検索に使う、発言を並べた文字列。
+// user の発言と、エージェントの回答（ツールの呼び出しを含む）が入れ替わるところに区切り線を入れる。
 func transcript(s aisession.Session) string {
 	var b strings.Builder
-	for _, m := range s.Messages {
+	for i, m := range s.Messages {
+		if i > 0 && (m.Role == aisession.RoleUser) != (s.Messages[i-1].Role == aisession.RoleUser) {
+			b.WriteString(transcriptDivider + "\n")
+		}
 		if m.Role == aisession.RoleTool {
 			fmt.Fprintf(&b, "[tool] %s\n", m.Text)
 			continue
 		}
-		fmt.Fprintf(&b, "%s: %s\n\n", m.Role, m.Text)
+		fmt.Fprintf(&b, "%s: %s\n", m.Role, m.Text)
 	}
 	return b.String()
 }

@@ -174,6 +174,33 @@ func TestView_aiは日時と種類のあとにリポジトリを出す(t *testin
 	}
 }
 
+// プレビューでは、user の発言と、エージェントの回答（ツールの呼び出しを含む）の間に区切り線を入れること
+func TestView_aiのプレビューは発言と回答の間を区切る(t *testing.T) {
+	cli := setupCLI(t)
+	cli.sessions = []aisession.Session{{
+		Agent: "claude", ID: "s1", Cwd: "/work/app", Updated: time.Now(),
+		Messages: []aisession.Message{
+			{Role: aisession.RoleUser, Text: "直して"},
+			{Role: aisession.RoleTool, Text: "Read"},
+			{Role: aisession.RoleAssistant, Text: "見ます"},
+			{Role: aisession.RoleTool, Text: "Edit"},
+			{Role: aisession.RoleAssistant, Text: "直しました"},
+			{Role: aisession.RoleUser, Text: "ありがとう"},
+		},
+	}}
+	cli.sessionPick = -1
+
+	if err := cli.run("view", "--ai"); err != nil {
+		t.Fatal(err)
+	}
+
+	line := strings.Repeat("─", 40)
+	want := "user: 直して\n" + line + "\n[tool] Read\nassistant: 見ます\n[tool] Edit\nassistant: 直しました\n" + line + "\nuser: ありがとう\n"
+	if got := cli.sessionPicker.contents[0]; got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 // セッションがなければ、一覧を出さずにエラーにすること
 func TestView_aiのセッションがなければエラー(t *testing.T) {
 	cli := setupCLI(t)
