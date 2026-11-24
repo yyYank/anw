@@ -34,7 +34,8 @@ type Picker struct {
 	contents []string
 	// labels は一覧とプレビューの見出しに表示する文字列。nil なら items を表示する
 	labels []string
-	// altLabels は p で切り替える表示の文字列。nil なら切り替えない
+	// altItems と altLabels は p で切り替える、絞り込みと表示の文字列。nil なら切り替えない
+	altItems   []string
 	altLabels  []string
 	showAlt    bool
 	selectable bool
@@ -73,10 +74,18 @@ func (m Picker) WithLabels(labels []string) Picker {
 	return m
 }
 
-// WithAltLabels は p で labels と切り替えて表示する文字列を alt にした Picker を返す。
-func (m Picker) WithAltLabels(alt []string) Picker {
-	m.altLabels = alt
+// WithAltLabels は p で切り替えたときの、/ の絞り込みの文字列を items に、表示の文字列を labels にした Picker を返す。
+func (m Picker) WithAltLabels(items, labels []string) Picker {
+	m.altItems, m.altLabels = items, labels
 	return m
+}
+
+// item は i 番目の / の絞り込みに使う文字列を返す。
+func (m Picker) item(i int) string {
+	if m.showAlt {
+		return m.altItems[i]
+	}
+	return m.items[i]
 }
 
 // label は i 番目に表示する文字列を返す。
@@ -128,7 +137,10 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "ctrl+g":
 		m.startInput(modeGrep)
 	case "p":
-		m.showAlt = m.altLabels != nil && !m.showAlt
+		if m.altLabels != nil {
+			m.showAlt = !m.showAlt
+			m.refilter()
+		}
 	case "enter":
 		if m.selectable && len(m.visible) > 0 {
 			m.selected = true
@@ -198,7 +210,7 @@ func (m Picker) matches(i int) bool {
 	if m.filter == modeGrep {
 		return containsFold(m.contents[i], m.query)
 	}
-	_, ok := fuzzyMatch(m.items[i], m.query)
+	_, ok := fuzzyMatch(m.item(i), m.query)
 	return ok
 }
 
@@ -258,12 +270,14 @@ func (m Picker) View() string {
 	return panes + "\n" + ansi.Truncate(m.statusLine(), width, "…")
 }
 
-// highlightLabel は i 番目を base で描画する。表示の文字列が items と同じときだけ、一致した文字を強調する。
+// highlightLabel は i 番目を base で描画する。表示の文字列が絞り込みの文字列を含むときは、一致した文字を強調する。
 func (m Picker) highlightLabel(i int, base lipgloss.Style) string {
-	if m.labels != nil || m.showAlt {
-		return base.Render(m.label(i))
+	label, item := m.label(i), m.item(i)
+	at := strings.Index(label, item)
+	if at < 0 {
+		return base.Render(label)
 	}
-	return m.highlightPath(m.items[i], base)
+	return base.Render(label[:at]) + m.highlightPath(item, base) + base.Render(label[at+len(item):])
 }
 
 // highlightPath は path を base で描画し、パスの絞り込みで一致した文字をさらに強調する。

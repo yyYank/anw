@@ -231,30 +231,38 @@ func TestPicker_表示と絞り込みの文字列を分ける(t *testing.T) {
 	}
 }
 
-// WithAltLabels を渡すと、p で表示の文字列を切り替えられること。絞り込みは元の文字列のまま
-func TestPicker_pで表示を切り替える(t *testing.T) {
-	keys := []string{"/home/me/ghq/github.com/yyYank/anw", "/home/me/ghq/github.com/yyYank/web"}
-	short := []string{"yyYank/anw  ログイン", "yyYank/web  API"}
-	full := []string{"/home/me/ghq/github.com/yyYank/anw  ログイン", "/home/me/ghq/github.com/yyYank/web  API"}
-	m := NewPickerWithContents(keys, []string{"会話1", "会話2"}, true).WithLabels(short).WithAltLabels(full)
+// WithAltLabels を渡すと、p で表示の文字列と / の絞り込みの文字列を切り替えられること
+func TestPicker_pで表示と絞り込みを切り替える(t *testing.T) {
+	keys := []string{"yyYank/anw", "cellorb/web"}
+	short := []string{"11-24  yyYank/anw  ログイン", "11-23  cellorb/web  API"}
+	fullKeys := []string{"/home/me/ghq/github.com/yyYank/anw", "/home/me/ghq/github.com/yyYank/x/cellorb/web"}
+	full := []string{"11-24  /home/me/ghq/github.com/yyYank/anw  ログイン", "11-23  /home/me/ghq/github.com/yyYank/x/cellorb/web  API"}
+	m := NewPickerWithContents(keys, []string{"会話1", "会話2"}, true).WithLabels(short).WithAltLabels(fullKeys, full)
 
-	if view := m.View(); !strings.Contains(view, short[0]) || strings.Contains(view, "/home/me") {
+	if view := m.View(); !strings.Contains(view, "yyYank/anw") || strings.Contains(view, "/home/me") {
 		t.Errorf("最初は短い表示になっていない:\n%s", view)
 	}
+	// 短い表示では、表示している「親/名前」で絞り込む。cellorb/web のフルパスの yyYank には一致しない
+	got := press(m, typed("/"), typed("yyYank"), keyEnter)
+	if view := got.View(); strings.Contains(view, "11-23") {
+		t.Errorf("表示にない文字で一致した:\n%s", view)
+	}
+
 	m = press(m, typed("p"))
 	if view := m.View(); !strings.Contains(view, "/home/me/ghq") {
 		t.Errorf("p で切り替わっていない:\n%s", view)
 	}
+	// フルパスの表示では、フルパスで絞り込む
+	got = press(m, typed("/"), typed("yyYank"), keyEnter)
+	if view := got.View(); !strings.Contains(view, "11-23") {
+		t.Errorf("フルパスで絞り込まれていない:\n%s", view)
+	}
+
 	m = press(m, typed("p"))
 	if view := m.View(); strings.Contains(view, "/home/me") {
 		t.Errorf("もう一度 p で戻っていない:\n%s", view)
 	}
-
 	// 入力モードの p は文字として扱う
-	got := press(m, typed("/"), typed("web"), keyEnter, keyEnter)
-	if i, ok := got.SelectedIndex(); !ok || i != 1 {
-		t.Errorf("SelectedIndex = %d, ok=%v", i, ok)
-	}
 	if strings.Contains(press(m, typed("/"), typed("p")).View(), "/home/me") {
 		t.Error("入力モードの p で切り替わった")
 	}
