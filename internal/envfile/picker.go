@@ -217,27 +217,9 @@ func (m Picker) matches(i int) bool {
 
 // View は左に一覧、右にカーソル位置のファイルのプレビューを並べて描画する。
 func (m Picker) View() string {
-	width := m.width
-	if width <= 0 {
-		width = defaultWidth
-	}
-
-	// 枠とパディングで左右それぞれ4桁使う
-	const frame = 4
+	width := m.screenWidth()
 	widths := m.columnWidths()
-	// 一致がなくても「(一致なし)」が切れない幅は取る
-	listWidth := lipgloss.Width("  (一致なし)")
-	for _, i := range m.visible {
-		listWidth = max(listWidth, lipgloss.Width(align(m.label(i), widths))+2)
-	}
-	listWidth = min(listWidth, (width-2*frame)/2)
-	previewWidth := width - 2*frame - listWidth
-
-	// 高さが分かっていれば、枠2行・タイトル1行・ヘルプ1行を除いた行数に収める
-	rows := -1
-	if m.height > 0 {
-		rows = max(m.height-4, 1)
-	}
+	listWidth, previewWidth, rows := m.layout(widths)
 
 	list := []string{titleStyle.Render(m.title)}
 	start, end := window(len(m.visible), m.cursor, rows)
@@ -271,6 +253,35 @@ func (m Picker) View() string {
 		paneStyle.Render(fit(preview, previewWidth)),
 	)
 	return panes + "\n" + ansi.Truncate(m.statusLine(), width, "…")
+}
+
+// screenWidth は画面の桁数を返す。まだ分からなければ defaultWidth を返す。
+func (m Picker) screenWidth() int {
+	if m.width <= 0 {
+		return defaultWidth
+	}
+	return m.width
+}
+
+// layout は一覧とプレビューの桁数と、一覧に表示できる行数を返す。行数が分からなければ -1 を返す。
+func (m Picker) layout(widths []int) (listWidth, previewWidth, rows int) {
+	// 枠とパディングで左右それぞれ4桁使う
+	const frame = 4
+	width := m.screenWidth()
+	// 一致がなくても「(一致なし)」が切れない幅は取る
+	listWidth = lipgloss.Width("  (一致なし)")
+	for _, i := range m.visible {
+		listWidth = max(listWidth, lipgloss.Width(align(m.label(i), widths))+2)
+	}
+	listWidth = min(listWidth, (width-2*frame)/2)
+	previewWidth = width - 2*frame - listWidth
+
+	// 高さが分かっていれば、枠2行・タイトル1行・ヘルプ1行を除いた行数に収める
+	rows = -1
+	if m.height > 0 {
+		rows = max(m.height-4, 1)
+	}
+	return listWidth, previewWidth, rows
 }
 
 // highlightLabel は i 番目を base で描画する。表示の文字列が絞り込みの文字列を含むときは、一致した文字を強調する。
