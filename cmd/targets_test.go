@@ -167,7 +167,7 @@ func TestVerbs_合わない対象は使える対象を並べて返す(t *testing
 
 	err := cli.run("edit", "--port")
 
-	if err == nil || err.Error() != "edit で使えるのは --env, --dotfiles です" {
+	if err == nil || err.Error() != "edit で使えるのは --env, --dotfiles, --snippet です" {
 		t.Errorf("err = %v", err)
 	}
 	err = cli.run("view", "--foo")
@@ -187,7 +187,7 @@ func TestRoot_対応表を出す(t *testing.T) {
 	out := cli.out.String()
 	for _, want := range [][]string{
 		{"view", "--env", "--port", "--branch", "--worktree", "--stash", "--ai", "--dotfiles", "--snippet"},
-		{"edit", "--env", "--dotfiles"},
+		{"edit", "--env", "--dotfiles", "--snippet"},
 		{"kill", "--port"},
 		{"delete", "--branch", "--worktree", "--stash"},
 		{"tidy"},

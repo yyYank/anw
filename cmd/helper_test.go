@@ -85,6 +85,13 @@ type testCLI struct {
 	// multiTitle は複数選択の画面の見出し。表示されなければ空
 	multiTitle string
 
+	// snippetInputs は snippet のエディタで順に保存を試す内容
+	snippetInputs []string
+	// snippetSaveErrs は snippetInputs それぞれを保存したときのエラー
+	snippetSaveErrs []error
+	// snippetEditor は snippet のエディタが開かれたときの引数。開かれなければ nil
+	snippetEditor *snippetEditorCall
+
 	// out はコマンドの標準出力
 	out bytes.Buffer
 }
@@ -239,7 +246,28 @@ func setupCLI(t *testing.T) *testCLI {
 		return c.targetPick, c.targetPick != "", nil
 	}
 	t.Cleanup(func() { chooseTarget = origChoose })
+
+	// エディタの画面を出さず、snippetInputs を順に保存したことにする
+	origSnippetEditor := showSnippetEditor
+	showSnippetEditor = func(name, text string, save func(string) error) (bool, error) {
+		c.snippetEditor = &snippetEditorCall{name: name, text: text}
+		c.snippetSaveErrs = nil
+		saved := false
+		for _, in := range c.snippetInputs {
+			err := save(in)
+			c.snippetSaveErrs = append(c.snippetSaveErrs, err)
+			saved = saved || err == nil
+		}
+		return saved, nil
+	}
+	t.Cleanup(func() { showSnippetEditor = origSnippetEditor })
 	return c
+}
+
+// snippetEditorCall は snippet のエディタに渡された引数
+type snippetEditorCall struct {
+	name string
+	text string
 }
 
 // filePickerCall は汎用の一覧の画面に渡された引数
