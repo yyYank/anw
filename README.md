@@ -23,7 +23,7 @@ anw <動詞> --<対象>
 | 動詞 | 内容 | 対象 |
 | --- | --- | --- |
 | `view` | 見る | `--env` `--port` `--branch` `--worktree` `--stash` `--ai` `--dotfiles` `--snippet` |
-| `edit` | 編集する | `--env` `--dotfiles` |
+| `edit` | 編集する | `--env` `--dotfiles` `--snippet` |
 | `kill` | プロセスを止める | `--port` |
 | `delete` | 削除する | `--branch` `--worktree` `--stash` |
 | `tidy` | ファイルを振り分ける | |
@@ -151,11 +151,32 @@ anw view --snippet hoge # snippet hoge の中身
 ```sh
 anw edit --env
 anw edit --dotfiles
+anw edit --snippet morning   # snippet morning を書く。なければ新しく作る
+anw edit --snippet           # 保存済みの snippet から選んで書く
 ```
 
 - 対象は `anw view --env`、`anw view --dotfiles` と同じです
 - `$EDITOR` でファイルを開きます
 - 見つかったファイルが1つだけなら、選択を挟まずに開きます
+
+**`--snippet`**
+
+- snippet を書く画面を開きます。書き方は [snippet](#snippet) を見てください
+- 保存すると、設定ファイルの隣の `snippets/名前`（既定では `~/.config/anw/snippets/名前`）に書きます。もう一度開くと、保存した内容から書き足せます
+- 保存のたびに `anw run` と同じ確認をし、実行できない内容は保存せずにエラーを表示します
+- `config.toml` に書いた snippet は編集できません
+- 入力モードで始まり、vim のように操作します
+
+| キー | 動き |
+| --- | --- |
+| `Ctrl+S` | 保存（どのモードでも） |
+| `Esc` | ノーマルモードへ |
+| `i` / `a` / `o` | 入力モードへ（カーソルの前 / 後 / 下に行を足して） |
+| `h` `j` `k` `l` / 矢印 | 移動 |
+| `0` / `$` | 行頭 / 行末へ |
+| `x` | 1文字消す |
+| `:w` / `:wq` / `:q` / `:q!` | 保存 / 保存して終了 / 終了（未保存の変更があれば止める） / 破棄して終了 |
+| `Ctrl+C` | 保存せずに終了 |
 
 ### anw kill
 
@@ -309,7 +330,21 @@ anw --config ./config.toml tidy
 
 ### snippet
 
-`[[snippet.名前]]` に、ステップを実行する順に書きます。
+`anw edit --snippet 名前` で書くのがおすすめです。`cd` の行で次からのステップの dir を決め、`anw` の行を1ステップとして、実行する順に書きます。
+
+```sh
+# 朝の片付け
+cd ~/Desktop
+anw tidy
+cd ~/Downloads
+anw tidy --by month
+```
+
+- 空行と `#` で始まる行は読み飛ばします
+- `cd` と `anw` 以外の行は書けません。引数を引用符でくくることはできません
+- 保存先は `snippets/名前` です。手で置いたファイルも同じように読み込みます
+
+`config.toml` の `[[snippet.名前]]` にも書けます。`snippets/` と同じ名前があれば、その snippet はエラーになります。
 
 ```toml
 [[snippet.morning]]
