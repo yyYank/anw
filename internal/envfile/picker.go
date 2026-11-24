@@ -33,7 +33,10 @@ type Picker struct {
 	items    []string
 	contents []string
 	// labels は一覧とプレビューの見出しに表示する文字列。nil なら items を表示する
-	labels     []string
+	labels []string
+	// altLabels は p で切り替える表示の文字列。nil なら切り替えない
+	altLabels  []string
+	showAlt    bool
 	selectable bool
 	// visible は絞り込んだ後に表示する items の添字。cursor はこの中の位置
 	visible  []int
@@ -70,8 +73,17 @@ func (m Picker) WithLabels(labels []string) Picker {
 	return m
 }
 
+// WithAltLabels は p で labels と切り替えて表示する文字列を alt にした Picker を返す。
+func (m Picker) WithAltLabels(alt []string) Picker {
+	m.altLabels = alt
+	return m
+}
+
 // label は i 番目に表示する文字列を返す。
 func (m Picker) label(i int) string {
+	if m.showAlt {
+		return m.altLabels[i]
+	}
 	if m.labels != nil {
 		return m.labels[i]
 	}
@@ -115,6 +127,8 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startInput(modePath)
 	case "ctrl+g":
 		m.startInput(modeGrep)
+	case "p":
+		m.showAlt = m.altLabels != nil && !m.showAlt
 	case "enter":
 		if m.selectable && len(m.visible) > 0 {
 			m.selected = true
@@ -246,8 +260,8 @@ func (m Picker) View() string {
 
 // highlightLabel は i 番目を base で描画する。表示の文字列が items と同じときだけ、一致した文字を強調する。
 func (m Picker) highlightLabel(i int, base lipgloss.Style) string {
-	if m.labels != nil {
-		return base.Render(m.labels[i])
+	if m.labels != nil || m.showAlt {
+		return base.Render(m.label(i))
 	}
 	return m.highlightPath(m.items[i], base)
 }
@@ -289,6 +303,9 @@ func (m Picker) statusLine() string {
 	help := "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  q: 終了"
 	if m.selectable {
 		help = "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  Enter: 編集  q: やめる"
+	}
+	if m.altLabels != nil {
+		help = strings.Replace(help, "  q:", "  p: 表示切替  q:", 1)
 	}
 	if m.query != "" {
 		prefix := "/"

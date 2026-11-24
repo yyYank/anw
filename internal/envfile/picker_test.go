@@ -230,3 +230,44 @@ func TestPicker_表示と絞り込みの文字列を分ける(t *testing.T) {
 		t.Errorf("SelectedIndex = %d, ok=%v", i, ok)
 	}
 }
+
+// WithAltLabels を渡すと、p で表示の文字列を切り替えられること。絞り込みは元の文字列のまま
+func TestPicker_pで表示を切り替える(t *testing.T) {
+	keys := []string{"/home/me/ghq/github.com/yyYank/anw", "/home/me/ghq/github.com/yyYank/web"}
+	short := []string{"yyYank/anw  ログイン", "yyYank/web  API"}
+	full := []string{"/home/me/ghq/github.com/yyYank/anw  ログイン", "/home/me/ghq/github.com/yyYank/web  API"}
+	m := NewPickerWithContents(keys, []string{"会話1", "会話2"}, true).WithLabels(short).WithAltLabels(full)
+
+	if view := m.View(); !strings.Contains(view, short[0]) || strings.Contains(view, "/home/me") {
+		t.Errorf("最初は短い表示になっていない:\n%s", view)
+	}
+	m = press(m, typed("p"))
+	if view := m.View(); !strings.Contains(view, "/home/me/ghq") {
+		t.Errorf("p で切り替わっていない:\n%s", view)
+	}
+	m = press(m, typed("p"))
+	if view := m.View(); strings.Contains(view, "/home/me") {
+		t.Errorf("もう一度 p で戻っていない:\n%s", view)
+	}
+
+	// 入力モードの p は文字として扱う
+	got := press(m, typed("/"), typed("web"), keyEnter, keyEnter)
+	if i, ok := got.SelectedIndex(); !ok || i != 1 {
+		t.Errorf("SelectedIndex = %d, ok=%v", i, ok)
+	}
+	if strings.Contains(press(m, typed("/"), typed("p")).View(), "/home/me") {
+		t.Error("入力モードの p で切り替わった")
+	}
+}
+
+// 切り替える表示がなければ、p では何も変わらず、キーの説明にも出さないこと
+func TestPicker_切り替える表示がなければpは何もしない(t *testing.T) {
+	m := NewPicker(files, fakeLoad, false)
+
+	if before, after := m.View(), press(m, typed("p")).View(); before != after {
+		t.Errorf("表示が変わった:\n%s\n---\n%s", before, after)
+	}
+	if strings.Contains(m.View(), "p:") {
+		t.Errorf("p の説明が出ている:\n%s", m.View())
+	}
+}
