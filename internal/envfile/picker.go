@@ -1,6 +1,7 @@
 package envfile
 
 import (
+	"math"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +12,9 @@ import (
 // ウィンドウサイズがまだ分からないときに使う幅
 const defaultWidth = 80
 
+// scrollEnd はプレビューを末尾まで動かすときの位置。描画のときに末尾の位置に直す
+const scrollEnd = math.MaxInt
+
 // 絞り込みの入力モード。通常モードは空文字
 const (
 	modeNormal = ""
@@ -20,6 +24,7 @@ const (
 
 var (
 	paneStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	activeStyle = paneStyle.BorderForeground(lipgloss.Color("6"))
 	titleStyle  = lipgloss.NewStyle().Bold(true)
 	cursorStyle = lipgloss.NewStyle().Reverse(true)
 	matchStyle  = lipgloss.NewStyle().Bold(true).Underline(true)
@@ -50,6 +55,11 @@ type Picker struct {
 	query  string
 	width  int
 	height int
+	// focusPreview はプレビューの pane に移っているか。移っていれば j/k でプレビューを動かす
+	focusPreview bool
+	// scroll はプレビューの先頭に表示する行。tail ならカーソルを動かすたびに末尾に戻す
+	scroll int
+	tail   bool
 }
 
 // NewPicker は items を表示する Picker を返す。
@@ -100,6 +110,13 @@ func (m Picker) label(i int) string {
 	return m.items[i]
 }
 
+// WithTail はプレビューを末尾から表示する Picker を返す。
+func (m Picker) WithTail() Picker {
+	m.tail = true
+	m.resetScroll()
+	return m
+}
+
 // WithTitle は一覧の見出しを title にした Picker を返す。
 func (m Picker) WithTitle(title string) Picker {
 	m.title = title
@@ -130,9 +147,29 @@ func (m Picker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch key.String() {
 	case "up", "k":
-		m.moveCursor(-1)
+		m.moveFocused(-1)
 	case "down", "j":
-		m.moveCursor(1)
+		m.moveFocused(1)
+	case "right", "l":
+		m.focusPreview = len(m.visible) > 0
+	case "left", "h":
+		m.focusPreview = false
+	case "g":
+		if m.focusPreview {
+			m.scroll = 0
+		}
+	case "G":
+		if m.focusPreview {
+			m.scroll = scrollEnd
+		}
+	case "ctrl+d":
+		if m.focusPreview {
+			m.scrollBy(m.halfPage())
+		}
+	case "ctrl+u":
+		if m.focusPreview {
+			m.scrollBy(-m.halfPage())
+		}
 	case "/":
 		m.startInput(modePath)
 	case "ctrl+g":
@@ -186,9 +223,64 @@ func (m *Picker) startInput(mode string) {
 	m.refilter()
 }
 
-// moveCursor はカーソルを delta 行動かす。一覧の外には出ない。
+// moveCursor はカーソルを delta 行動かす。一覧の外には出ない。プレビューは表示し始める位置に戻す。
 func (m *Picker) moveCursor(delta int) {
 	m.cursor = min(max(m.cursor+delta, 0), max(len(m.visible)-1, 0))
+	m.resetScroll()
+}
+
+// moveFocused は、プレビューの pane にいればプレビューを、いなければカーソルを delta 行動かす。
+func (m *Picker) moveFocused(delta int) {
+	if m.focusPreview {
+		m.scrollBy(delta)
+		return
+	}
+	m.moveCursor(delta)
+}
+
+// resetScroll はプレビューを表示し始める位置に戻す。tail なら末尾、そうでなければ先頭にする。
+func (m *Picker) resetScroll() {
+	m.scroll = 0
+	if m.tail {
+		m.scroll = scrollEnd
+	}
+}
+
+// scrollBy はプレビューを delta 行動かす。先頭と末尾より先には動かない。
+func (m *Picker) scrollBy(delta int) {
+	m.scroll = max(m.clampedScroll()+delta, 0)
+	m.scroll = m.clampedScroll()
+}
+
+// clampedScroll は scroll を、先頭から末尾までの間に収めた位置を返す。
+func (m Picker) clampedScroll() int {
+	if len(m.visible) == 0 {
+		return 0
+	}
+	_, previewWidth, rows := m.layout(m.columnWidths())
+	if rows < 0 {
+		return 0
+	}
+	lines := m.previewLines(m.visible[m.cursor], previewWidth)
+	return min(m.scroll, max(len(lines)-rows, 0))
+}
+
+// halfPage はプレビューの半ページの行数を返す。
+func (m Picker) halfPage() int {
+	_, _, rows := m.layout(m.columnWidths())
+	return max(rows/2, 1)
+}
+
+// previewLines は i 番目の中身を、width 桁で折り返した行にして返す。中身で絞り込んでいれば一致した行を強調する。
+func (m Picker) previewLines(i, width int) []string {
+	var lines []string
+	for _, line := range strings.Split(strings.TrimRight(m.contents[i], "\n"), "\n") {
+		if m.filter == modeGrep && m.query != "" && containsFold(line, m.query) {
+			line = matchStyle.Render(line)
+		}
+		lines = append(lines, strings.Split(ansi.Wrap(line, width, ""), "\n")...)
+	}
+	return lines
 }
 
 // refilter は query で一覧を絞り込み直し、カーソルを先頭に戻す。
@@ -201,6 +293,8 @@ func (m *Picker) refilter() {
 		}
 	}
 	m.visible, m.cursor = visible, 0
+	m.resetScroll()
+	m.focusPreview = m.focusPreview && len(visible) > 0
 }
 
 // matches は items[i] が今の絞り込みに一致するかを返す。
@@ -238,19 +332,22 @@ func (m Picker) View() string {
 	if len(m.visible) > 0 {
 		i := m.visible[m.cursor]
 		preview = append(preview, titleStyle.Render(align(m.label(i), widths)))
-		content := strings.Split(strings.TrimRight(m.contents[i], "\n"), "\n")
-		_, end := window(len(content), 0, rows)
-		for _, line := range content[:end] {
-			if m.filter == modeGrep && m.query != "" && containsFold(line, m.query) {
-				line = matchStyle.Render(line)
-			}
-			preview = append(preview, line)
+		lines := m.previewLines(i, previewWidth)
+		start := m.clampedScroll()
+		end := len(lines)
+		if rows >= 0 {
+			end = min(start+rows, end)
 		}
+		preview = append(preview, lines[start:end]...)
 	}
 
+	listStyle, previewStyle := activeStyle, paneStyle
+	if m.focusPreview {
+		listStyle, previewStyle = paneStyle, activeStyle
+	}
 	panes := lipgloss.JoinHorizontal(lipgloss.Top,
-		paneStyle.Render(fit(list, listWidth)),
-		paneStyle.Render(fit(preview, previewWidth)),
+		listStyle.Render(fit(list, listWidth)),
+		previewStyle.Render(fit(preview, previewWidth)),
 	)
 	return panes + "\n" + ansi.Truncate(m.statusLine(), width, "…")
 }
@@ -351,9 +448,12 @@ func (m Picker) statusLine() string {
 	case modeGrep:
 		return "grep: " + m.query + "▏" + helpStyle.Render("  Enter: 確定  Esc: 解除")
 	}
-	help := "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  q: 終了"
+	help := "↑↓/jk: 移動  →/l: プレビューへ  /: パス検索  Ctrl+G: 中身検索  q: 終了"
 	if m.selectable {
-		help = "↑↓/jk: 移動  /: パス検索  Ctrl+G: 中身検索  Enter: 編集  q: やめる"
+		help = "↑↓/jk: 移動  →/l: プレビューへ  /: パス検索  Ctrl+G: 中身検索  Enter: 編集  q: やめる"
+	}
+	if m.focusPreview {
+		help = "↑↓/jk: スクロール  g/G: 先頭/末尾  Ctrl+D/U: 半ページ  ←/h: 一覧へ  q: やめる"
 	}
 	if m.altLabels != nil {
 		help = strings.Replace(help, "  q:", "  p: 表示切替  q:", 1)

@@ -1,6 +1,7 @@
 package envfile
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -296,5 +297,120 @@ func TestPicker_タブで区切った列を表示中の行でそろえる(t *tes
 	got := press(m, typed("/"), typed("chill"), keyEnter)
 	if view := got.View(); !strings.Contains(view, "11-19  claude  yyYank/gh-chillbox  main") {
 		t.Errorf("絞り込んだ行に合わせて詰めていない:\n%s", view)
+	}
+}
+
+// longContents は L01 から L50 までの50行と、2つ目の要素の中身を返す
+func longContents() []string {
+	var lines []string
+	for i := 1; i <= 50; i++ {
+		lines = append(lines, fmt.Sprintf("L%02d", i))
+	}
+	return []string{strings.Join(lines, "\n"), "SECOND"}
+}
+
+// sized は画面の大きさを width x height にした Picker を返す
+func sized(m Picker, width, height int) Picker {
+	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	return next.(Picker)
+}
+
+var (
+	keyLeft  = tea.KeyMsg{Type: tea.KeyLeft}
+	keyRight = tea.KeyMsg{Type: tea.KeyRight}
+	keyUp    = tea.KeyMsg{Type: tea.KeyUp}
+	ctrlD    = tea.KeyMsg{Type: tea.KeyCtrlD}
+	ctrlU    = tea.KeyMsg{Type: tea.KeyCtrlU}
+)
+
+// l で右の pane に移ると j/k でプレビューを1行ずつ動かし、h で左に戻ると j/k で一覧を動かすこと
+func TestPicker_lとhでpaneを移りjkで動かす(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a", "b"}, longContents(), true), 80, 12)
+
+	m = press(m, typed("l"), typed("j"), typed("j"), typed("j"))
+	if view := m.View(); strings.Contains(view, "L03") || !strings.Contains(view, "L04") {
+		t.Errorf("右の pane で3行動いていない:\n%s", view)
+	}
+	m = press(m, typed("k"))
+	if view := m.View(); !strings.Contains(view, "L03") {
+		t.Errorf("k で1行戻っていない:\n%s", view)
+	}
+
+	m = press(m, typed("h"), typed("j"))
+	if view := m.View(); !strings.Contains(view, "SECOND") {
+		t.Errorf("左の pane に戻って一覧が動いていない:\n%s", view)
+	}
+
+	// 矢印キーでも同じ
+	m = press(m, keyUp, keyRight, keyDown)
+	if view := m.View(); strings.Contains(view, "L01") || !strings.Contains(view, "L02") {
+		t.Errorf("→ と ↓ でプレビューが動いていない:\n%s", view)
+	}
+	m = press(m, keyLeft, keyDown)
+	if view := m.View(); !strings.Contains(view, "SECOND") {
+		t.Errorf("← で左の pane に戻っていない:\n%s", view)
+	}
+}
+
+// 右の pane では g で先頭、G で末尾、Ctrl+D / Ctrl+U で半ページずつ動くこと。端より先には動かない
+func TestPicker_右のpaneでgとGとCtrlDとCtrlU(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a", "b"}, longContents(), true), 80, 12)
+
+	m = press(m, typed("l"), typed("G"))
+	if view := m.View(); !strings.Contains(view, "L50") || strings.Contains(view, "L01") {
+		t.Errorf("G で末尾に行っていない:\n%s", view)
+	}
+	m = press(m, typed("j"), typed("j"), typed("k"))
+	if view := m.View(); strings.Contains(view, "L50") {
+		t.Errorf("末尾より先に動いた分が残っている:\n%s", view)
+	}
+	m = press(m, typed("g"))
+	if view := m.View(); !strings.Contains(view, "L01") {
+		t.Errorf("g で先頭に戻っていない:\n%s", view)
+	}
+	m = press(m, ctrlD)
+	if view := m.View(); strings.Contains(view, "L01") || !strings.Contains(view, "L05") {
+		t.Errorf("Ctrl+D で半ページ動いていない:\n%s", view)
+	}
+	m = press(m, ctrlU)
+	if view := m.View(); !strings.Contains(view, "L01") {
+		t.Errorf("Ctrl+U で半ページ戻っていない:\n%s", view)
+	}
+}
+
+// WithTail ならプレビューを末尾から表示し、一覧で別の行に移ってもその行の末尾から表示すること
+func TestPicker_WithTailは末尾から表示する(t *testing.T) {
+	contents := longContents()
+	contents[1] = strings.Replace(contents[0], "L", "M", -1)
+	m := sized(NewPickerWithContents([]string{"a", "b"}, contents, true).WithTail(), 80, 12)
+
+	if view := m.View(); !strings.Contains(view, "L50") || strings.Contains(view, "L01") {
+		t.Errorf("末尾から表示していない:\n%s", view)
+	}
+	m = press(m, typed("l"), typed("g"), typed("h"), typed("j"))
+	if view := m.View(); !strings.Contains(view, "M50") {
+		t.Errorf("別の行に移って末尾に戻っていない:\n%s", view)
+	}
+}
+
+// 一覧で別の行に移ったら、プレビューの位置を先頭に戻すこと
+func TestPicker_別の行に移ったらプレビューを先頭に戻す(t *testing.T) {
+	contents := longContents()
+	contents[1] = contents[0]
+	m := sized(NewPickerWithContents([]string{"a", "b"}, contents, true), 80, 12)
+
+	m = press(m, typed("l"), typed("G"), typed("h"), typed("j"))
+
+	if view := m.View(); !strings.Contains(view, "L01") {
+		t.Errorf("先頭に戻っていない:\n%s", view)
+	}
+}
+
+// プレビューの長い行は、切らずに折り返して表示すること
+func TestPicker_長い行は折り返す(t *testing.T) {
+	m := sized(NewPickerWithContents([]string{"a"}, []string{strings.Repeat("x", 200) + "END"}, true), 80, 30)
+
+	if view := m.View(); !strings.Contains(view, "END") {
+		t.Errorf("折り返されていない:\n%s", view)
 	}
 }

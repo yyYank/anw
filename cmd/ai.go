@@ -151,9 +151,9 @@ func shellQuote(s string) string {
 }
 
 // runSessionPicker はセッションの一覧を表示し、選ばれたセッションの添字を返す。
-// / は keys で絞り込み、p で fullKeys での絞り込みと fullLabels の表示に切り替えられる。
+// / は keys で絞り込み、p で fullKeys での絞り込みと fullLabels の表示に切り替えられる。プレビューは最新の発言が見えるよう末尾から表示する。
 func runSessionPicker(keys, labels, fullKeys, fullLabels, contents []string) (int, bool, error) {
-	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithAltLabels(fullKeys, fullLabels).WithTitle("セッション")
+	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithAltLabels(fullKeys, fullLabels).WithTitle("セッション").WithTail()
 	m, err := tea.NewProgram(p).Run()
 	if err != nil {
 		return 0, false, err
