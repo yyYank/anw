@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -52,8 +53,8 @@ func TestView_aiはセッションを一覧する(t *testing.T) {
 			t.Errorf("%q が一覧にない: %q", s, p.labels[0])
 		}
 	}
-	if p.keys[0] != "/work/app" {
-		t.Errorf("絞り込みの文字列が作業ディレクトリでない: %q", p.keys[0])
+	if p.keys[0] != "work/app" || p.fullKeys[0] != "/work/app" {
+		t.Errorf("絞り込みの文字列が表示と合っていない: %q, %q", p.keys[0], p.fullKeys[0])
 	}
 	for _, s := range []string{"ログインのバグを直して", "Read", "直しました"} {
 		if !strings.Contains(p.contents[0], s) {
@@ -115,7 +116,7 @@ func TestView_aiのドットは同じリポジトリだけ(t *testing.T) {
 	}
 
 	p := cli.sessionPicker
-	if p == nil || strings.Join(p.keys, ",") != "/work/app,/work/app-wt" {
+	if p == nil || strings.Join(p.fullKeys, ",") != "/work/app,/work/app-wt" {
 		t.Errorf("同じリポジトリのセッションだけになっていない: %+v", p)
 	}
 }
@@ -137,12 +138,14 @@ func TestView_aiは消えた作業ディレクトリに印を付ける(t *testin
 	}
 }
 
-// 一覧ではリポジトリの「親/名前」を先頭に出し、切り替え先ではフルパスを出すこと
-func TestView_aiはリポジトリの親と名前を出す(t *testing.T) {
+// 一覧は日時・種類・リポジトリの「親/名前」・ブランチの順に出し、切り替え先ではフルパスを出すこと
+func TestView_aiは日時と種類のあとにリポジトリを出す(t *testing.T) {
 	cli := setupCLI(t)
+	updated := time.Date(2026, 11, 24, 15, 6, 0, 0, time.Local)
 	cli.sessions = []aisession.Session{
-		{Agent: "claude", ID: "s1", Cwd: "/Users/me/ghq/github.com/yyYank/anw-wt/cmd", Updated: time.Now()},
-		{Agent: "claude", ID: "s2", Cwd: "/Users/me/tmp/scratch", Updated: time.Now()},
+		{Agent: "claude", ID: "s1", Cwd: "/Users/me/ghq/github.com/yyYank/anw-wt/cmd", Branch: "main", Updated: updated},
+		{Agent: "codex", ID: "s2", Cwd: "/Users/me/tmp/scratch", Branch: "dev", Updated: updated},
+		{Agent: "claude", ID: "s3", Cwd: "/Users/me/x/" + strings.Repeat("long", 10), Branch: "main", Updated: updated},
 	}
 	cli.sessionPick = -1
 	// worktree のサブディレクトリでも、本体のリポジトリにまとまる
@@ -153,17 +156,24 @@ func TestView_aiはリポジトリの親と名前を出す(t *testing.T) {
 	}
 
 	p := cli.sessionPicker
-	for i, want := range []string{"yyYank/anw ", "tmp/scratch "} {
-		if !strings.HasPrefix(p.labels[i], want) || strings.Contains(p.labels[i], "/Users/me") {
+	for i, dir := range []string{"yyYank/anw", "tmp/scratch"} {
+		s := cli.sessions[i]
+		if want := "11-24 15:06  " + fmt.Sprintf("%-6s", s.Agent) + "  " + dir + " "; !strings.HasPrefix(p.labels[i], want) {
 			t.Errorf("labels[%d] = %q, want 先頭が %q", i, p.labels[i], want)
 		}
-		if !strings.HasPrefix(p.fullLabels[i], cli.sessions[i].Cwd+" ") {
-			t.Errorf("fullLabels[%d] = %q, want 先頭が %q", i, p.fullLabels[i], cli.sessions[i].Cwd)
+		if p.keys[i] != dir || p.fullKeys[i] != s.Cwd {
+			t.Errorf("絞り込みの文字列が %q, %q", p.keys[i], p.fullKeys[i])
+		}
+		if !strings.Contains(p.fullLabels[i], s.Cwd+" ") {
+			t.Errorf("fullLabels[%d] = %q にフルパスがない", i, p.fullLabels[i])
 		}
 	}
-	// 列がそろうよう、短い方を空白で埋める
-	if strings.Index(p.labels[0], "claude") != strings.Index(p.labels[1], "claude") {
-		t.Errorf("列がそろっていない: %q", p.labels)
+	// 長い名前は切り詰め、ブランチの列をそろえる
+	if strings.Contains(p.labels[2], strings.Repeat("long", 10)) {
+		t.Errorf("長い名前が切り詰められていない: %q", p.labels[2])
+	}
+	if a, b := strings.Index(p.labels[0], "main"), strings.Index(p.labels[1], "dev"); a != b {
+		t.Errorf("ブランチの列がそろっていない: %q", p.labels)
 	}
 }
 

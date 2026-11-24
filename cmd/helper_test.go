@@ -200,8 +200,8 @@ func setupCLI(t *testing.T) *testCLI {
 		}
 		return dir, true
 	}
-	showSessionPicker = func(keys, labels, fullLabels, contents []string) (int, bool, error) {
-		c.sessionPicker = &sessionPickerCall{keys: keys, labels: labels, fullLabels: fullLabels, contents: contents}
+	showSessionPicker = func(keys, labels, fullKeys, fullLabels, contents []string) (int, bool, error) {
+		c.sessionPicker = &sessionPickerCall{keys: keys, labels: labels, fullKeys: fullKeys, fullLabels: fullLabels, contents: contents}
 		if c.sessionPick < 0 {
 			return 0, false, nil
 		}
@@ -282,6 +282,7 @@ type filePickerCall struct {
 type sessionPickerCall struct {
 	keys       []string
 	labels     []string
+	fullKeys   []string
 	fullLabels []string
 	contents   []string
 }

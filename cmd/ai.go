@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yyYank/anw/internal/aisession"
 	"github.com/yyYank/anw/internal/envfile"
 )
@@ -23,6 +24,9 @@ var (
 
 // firstPromptWidth は一覧に出す最初の発言の文字数の上限
 const firstPromptWidth = 40
+
+// dirWidth は一覧に出すリポジトリの「親/名前」の桁数の上限
+const dirWidth = 30
 
 // viewAI はエージェントのセッションを一覧し、選んだセッションを再開するコマンドを出力する。
 // args が "." なら、カレントと同じリポジトリのセッションだけにする。
@@ -47,18 +51,16 @@ func viewAI(w io.Writer, args []string) error {
 		return errors.New("セッションが見つかりません")
 	}
 
-	keys := make([]string, len(sessions))
 	dirs := make([]string, len(sessions))
 	fullDirs := make([]string, len(sessions))
 	contents := make([]string, len(sessions))
 	for i, s := range sessions {
-		keys[i] = s.Cwd
 		dirs[i], fullDirs[i] = sessionDirs(s)
 		contents[i] = transcript(s)
 	}
-	labels := sessionLabels(sessions, dirs)
-	fullLabels := sessionLabels(sessions, fullDirs)
-	i, ok, err := showSessionPicker(keys, labels, fullLabels, contents)
+	labels := sessionLabels(sessions, dirs, dirWidth)
+	fullLabels := sessionLabels(sessions, fullDirs, -1)
+	i, ok, err := showSessionPicker(dirs, labels, fullDirs, fullLabels, contents)
 	if err != nil || !ok {
 		return err
 	}
@@ -104,10 +106,16 @@ func parentAndName(path string) string {
 	return filepath.Join(filepath.Base(filepath.Dir(path)), filepath.Base(path))
 }
 
-// sessionLabels は一覧に出す行を、作業ディレクトリ dirs を先頭にして列をそろえて返す。
-func sessionLabels(sessions []aisession.Session, dirs []string) []string {
+// sessionLabels は一覧に出す行を、日時・種類・作業ディレクトリ dirs・ブランチ・最初の発言の順に、列をそろえて返す。
+// limit が正なら、dirs をその桁数までに切り詰める。
+func sessionLabels(sessions []aisession.Session, dirs []string, limit int) []string {
+	shown := make([]string, len(dirs))
 	width := 0
-	for _, d := range dirs {
+	for i, d := range dirs {
+		if limit > 0 {
+			d = ansi.Truncate(d, limit, "…")
+		}
+		shown[i] = d
 		width = max(width, lipgloss.Width(d))
 	}
 	labels := make([]string, len(sessions))
@@ -116,8 +124,8 @@ func sessionLabels(sessions []aisession.Session, dirs []string) []string {
 		if len(prompt) > firstPromptWidth {
 			prompt = append(prompt[:firstPromptWidth], '…')
 		}
-		dir := dirs[i] + strings.Repeat(" ", width-lipgloss.Width(dirs[i]))
-		labels[i] = fmt.Sprintf("%s  %s  %-6s  %s  %s", dir, s.Updated.Local().Format("01-02 15:04"), s.Agent, s.Branch, string(prompt))
+		dir := shown[i] + strings.Repeat(" ", width-lipgloss.Width(shown[i]))
+		labels[i] = fmt.Sprintf("%s  %-6s  %s  %s  %s", s.Updated.Local().Format("01-02 15:04"), s.Agent, dir, s.Branch, string(prompt))
 	}
 	return labels
 }
@@ -149,9 +157,10 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// runSessionPicker はセッションの一覧を表示し、選ばれたセッションの添字を返す。p で fullLabels の表示に切り替えられる。
-func runSessionPicker(keys, labels, fullLabels, contents []string) (int, bool, error) {
-	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithAltLabels(fullLabels).WithTitle("セッション")
+// runSessionPicker はセッションの一覧を表示し、選ばれたセッションの添字を返す。
+// / は keys で絞り込み、p で fullKeys での絞り込みと fullLabels の表示に切り替えられる。
+func runSessionPicker(keys, labels, fullKeys, fullLabels, contents []string) (int, bool, error) {
+	p := envfile.NewPickerWithContents(keys, contents, true).WithLabels(labels).WithAltLabels(fullKeys, fullLabels).WithTitle("セッション")
 	m, err := tea.NewProgram(p).Run()
 	if err != nil {
 		return 0, false, err
